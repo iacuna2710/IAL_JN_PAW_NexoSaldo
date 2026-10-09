@@ -1,6 +1,7 @@
 using PAW_Jueves.Models;
 using Microsoft.AspNetCore.Mvc;
 using System.Diagnostics;
+using System.Net;
 
 namespace PAW_Jueves.Controllers
 {
@@ -23,6 +24,12 @@ namespace PAW_Jueves.Controllers
 
             var response = client.PostAsJsonAsync(url, model).Result;
 
+            if (response.StatusCode == HttpStatusCode.OK)
+                return RedirectToAction("Index", "Home");
+
+            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
+            ViewBag.Mensaje = datos?.Mensaje;
+
             return View();
         }
 
@@ -44,6 +51,12 @@ namespace PAW_Jueves.Controllers
             var url = _configuration.GetValue<string>("Variables:ApiBaseUrl") + "Home/Register";
 
             var response = client.PostAsJsonAsync(url, model).Result;
+
+            if(response.StatusCode == HttpStatusCode.OK)
+                return RedirectToAction("Login", "Home");
+
+            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
+            ViewBag.Mensaje = datos?.Mensaje;
 
             return View();
         }
