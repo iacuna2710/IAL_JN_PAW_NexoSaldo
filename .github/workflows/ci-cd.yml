@@ -30,10 +30,15 @@ jobs:
       - name: Build
         run: dotnet build ${{ matrix.project }} -c Release --no-restore
 
-  # Pruebas automaticas de la API (reglas de negocio, hash de contrasenas, token JWT)
+  # Pruebas automaticas: API (hash de contrasenas, token JWT) y WEB (validacion de imagenes)
   test:
-    name: Tests API
+    name: Tests ${{ matrix.project }}
     runs-on: ubuntu-latest
+    strategy:
+      matrix:
+        project:
+          - PAW_Jueves/PAW_Jueves.Tests/PAW_Jueves.Tests.csproj
+          - PAW_Jueves_API/PAW_Jueves_API.Tests/PAW_Jueves_API.Tests.csproj
     steps:
       - uses: actions/checkout@v4
 
@@ -42,7 +47,7 @@ jobs:
           dotnet-version: 10.0.x
 
       - name: Test
-        run: dotnet test PAW_Jueves_API/PAW_Jueves_API.Tests/PAW_Jueves_API.Tests.csproj -c Release
+        run: dotnet test ${{ matrix.project }} -c Release
 
   # CD: construye las imagenes Docker; solo se publican en Docker Hub con push a main
   docker:

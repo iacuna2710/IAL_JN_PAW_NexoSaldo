@@ -91,6 +91,14 @@ app.UseExceptionHandler("/Error/CapturarError");
 // Si alguien entra por http://, se le redirige a https://
 app.UseHttpsRedirection();
 
+// MapStaticAssets (más abajo) solo sirve los archivos que existían al compilar. Las fotos de
+// perfil se suben mientras la aplicación corre (wwwroot/uploads), por eso también se usa
+// UseStaticFiles. "nosniff" evita que el navegador interprete un archivo como otro tipo.
+app.UseStaticFiles(new StaticFileOptions
+{
+    OnPrepareResponse = archivo => archivo.Context.Response.Headers.XContentTypeOptions = "nosniff"
+});
+
 // Decide qué controlador y acción atienden la URL (usa la ruta definida más abajo)
 app.UseRouting();
 

@@ -74,9 +74,12 @@ services:
     volumes:
       # Llaves de Data Protection (antiforgery y sesion); sin esto se pierden al recrear el contenedor
       - web_keys:/app/App_Data/keys
+      # Fotos de perfil subidas por los usuarios
+      - web_uploads:/app/wwwroot/uploads
     depends_on:
       - api
 
 volumes:
   jn_bd_data:
   web_keys:
+  web_uploads:

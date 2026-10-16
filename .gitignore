@@ -364,3 +364,6 @@ FodyWeavers.xsd
 
 # Llaves de Data Protection de la WEB (se generan solas; nunca se versionan)
 **/App_Data/keys/
+
+# Fotos de perfil subidas por los usuarios (datos, no código)
+**/wwwroot/uploads/

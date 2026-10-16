@@ -19,6 +19,9 @@
         /// <summary>Id del usuario; la API lo envía al iniciar sesión. En errores vale 0.</summary>
         public int IdUsuario { get; set; }
 
+        /// <summary>Ruta de la foto de perfil, si el usuario ya subió una.</summary>
+        public string? FotoPerfil { get; set; }
+
         /// <summary>Nombre completo del usuario, si la API lo envía. Si no, queda "".</summary>
         public string NombreCompleto { get; set; } = string.Empty;
 

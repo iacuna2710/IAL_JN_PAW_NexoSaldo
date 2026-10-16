@@ -68,6 +68,7 @@ namespace PAW_Jueves.Controllers
                 HttpContext.Session.SetString(ClavesSesion.Token, respuesta.Datos.Token);
                 HttpContext.Session.SetInt32(ClavesSesion.IdUsuario, respuesta.Datos.IdUsuario);
                 HttpContext.Session.SetString(ClavesSesion.NombreCompleto, respuesta.Datos.NombreCompleto);
+                HttpContext.Session.SetString(ClavesSesion.FotoPerfil, respuesta.Datos.FotoPerfil ?? string.Empty);
                 HttpContext.Session.SetInt32(ClavesSesion.Autenticado, 1);
                 return RedirectToAction("Index", "Home");
             }

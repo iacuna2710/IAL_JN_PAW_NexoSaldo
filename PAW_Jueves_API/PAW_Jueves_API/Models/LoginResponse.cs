@@ -10,5 +10,6 @@ namespace PAW_Jueves_API.Models
         public string Token { get; set; } = string.Empty;
         public int IdUsuario { get; set; }
         public string NombreCompleto { get; set; } = string.Empty;
+        public string? FotoPerfil { get; set; }
     }
 }

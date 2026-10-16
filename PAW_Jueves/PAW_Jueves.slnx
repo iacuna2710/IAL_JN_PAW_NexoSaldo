@@ -1,3 +1,4 @@
 <Solution>
+  <Project Path="PAW_Jueves.Tests/PAW_Jueves.Tests.csproj" />
   <Project Path="PAW_Jueves/PAW_Jueves.csproj" />
 </Solution>

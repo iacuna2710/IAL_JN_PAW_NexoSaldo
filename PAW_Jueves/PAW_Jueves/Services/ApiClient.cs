@@ -31,6 +31,13 @@ namespace PAW_Jueves.Services
             return EnviarAsync<T>(peticion, cancellationToken);
         }
 
+        /// <summary>PUT con cuerpo JSON. Ejemplo: PutAsync&lt;UsuarioResponse&gt;("Usuario/Perfil", model).</summary>
+        public Task<RespuestaApi<T>> PutAsync<T>(string ruta, object cuerpo, CancellationToken cancellationToken = default)
+        {
+            var peticion = new HttpRequestMessage(HttpMethod.Put, ruta) { Content = JsonContent.Create(cuerpo) };
+            return EnviarAsync<T>(peticion, cancellationToken);
+        }
+
         /// <summary>GET. Ejemplo: GetAsync&lt;PerfilResponse&gt;("Usuario/Perfil").</summary>
         public Task<RespuestaApi<T>> GetAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
             EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Get, ruta), cancellationToken);

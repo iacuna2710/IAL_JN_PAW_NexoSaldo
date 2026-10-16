@@ -8,6 +8,7 @@ namespace PAW_Jueves_API.Models
     {
         public int IdUsuario { get; set; }
         public string NombreCompleto { get; set; } = string.Empty;
+        public string? FotoPerfil { get; set; }
         public string CorreoElectronico { get; set; } = string.Empty;
         public string Contrasenna { get; set; } = string.Empty;
     }

@@ -15,6 +15,9 @@ namespace PAW_Jueves.Models
         /// <summary>Nombre que se muestra en la barra superior.</summary>
         public const string NombreCompleto = "NombreCompleto";
 
+        /// <summary>Ruta de la foto de perfil (/uploads/perfiles/...) o vacío si usa la imagen por defecto.</summary>
+        public const string FotoPerfil = "FotoPerfil";
+
         /// <summary>Vale 1 con sesión iniciada. Lo usa Error.cshtml para elegir el layout.</summary>
         public const string Autenticado = "Autenticado";
     }

@@ -1,0 +1,81 @@
+﻿@model PerfilModel
+@{
+    var foto = string.IsNullOrEmpty(Model.FotoPerfil) ? Url.Content("~/images/avatar.png") : Model.FotoPerfil;
+}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">Mi cuenta</h1>
+    <p class="page-subtitle">Su foto de perfil y sus datos personales</p>
+  </div>
+</div>
+
+<partial name="_MensajesCuenta" />
+
+<div class="row g-4">
+  <!-- Foto de perfil -->
+  <div class="col-12 col-lg-4">
+    <div class="card p-4 border-light shadow-sm text-center h-100">
+      <img id="foto-preview" src="@foto" alt="Foto de perfil" class="rounded-circle mx-auto mb-3"
+           style="width: 128px; height: 128px; object-fit: cover;">
+      <h2 class="h5 mb-1">@Model.NombreCompleto</h2>
+      <p class="text-secondary small mb-4">@Model.CorreoElectronico</p>
+
+      <form asp-controller="Cuenta" asp-action="CambiarFoto" method="post" enctype="multipart/form-data" class="text-start">
+        <label for="foto" class="form-label-custom">Cambiar foto</label>
+        <input type="file" id="foto" name="foto" class="form-control form-control-custom mb-2"
+               accept="image/jpeg,image/png,image/webp" required>
+        <p class="text-secondary fs-xs mb-3">JPG, PNG o WEBP. Máximo 2 MB.</p>
+        <button type="submit" class="btn-custom btn-custom-primary w-100">
+          <i class="bi bi-upload"></i> Subir foto
+        </button>
+      </form>
+    </div>
+  </div>
+
+  <!-- Datos personales -->
+  <div class="col-12 col-lg-8">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <h2 class="card-title h5 mb-4">Datos personales</h2>
+
+      <form asp-controller="Cuenta" asp-action="ActualizarDatos" method="post">
+        <div class="row g-3">
+          <div class="col-12 col-md-6">
+            <label for="Identificacion" class="form-label-custom">Identificación</label>
+            <input id="Identificacion" class="form-control form-control-custom" value="@Model.Identificacion" disabled>
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="CorreoElectronico" class="form-label-custom">Correo electrónico</label>
+            <input id="CorreoElectronico" class="form-control form-control-custom" value="@Model.CorreoElectronico" disabled>
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="NombreCompleto" class="form-label-custom">Nombre completo</label>
+            <input id="NombreCompleto" name="NombreCompleto" class="form-control form-control-custom"
+                   value="@Model.NombreCompleto" required maxlength="250">
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="Telefono" class="form-label-custom">Teléfono</label>
+            <input id="Telefono" name="Telefono" type="tel" class="form-control form-control-custom"
+                   value="@Model.Telefono" maxlength="20" pattern="[0-9+\-\s()]*" placeholder="Opcional">
+          </div>
+        </div>
+
+        <p class="text-secondary fs-xs mt-3 mb-4">La identificación y el correo no se pueden cambiar.</p>
+
+        <button type="submit" class="btn-custom btn-custom-primary">
+          <i class="bi bi-save"></i> Guardar cambios
+        </button>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Vista previa: muestra la imagen elegida antes de subirla
+  document.getElementById('foto')?.addEventListener('change', function () {
+    const archivo = this.files && this.files[0];
+    if (archivo && archivo.type.startsWith('image/')) {
+      document.getElementById('foto-preview').src = URL.createObjectURL(archivo);
+    }
+  });
+</script>
