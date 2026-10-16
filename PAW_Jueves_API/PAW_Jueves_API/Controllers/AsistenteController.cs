@@ -125,8 +125,15 @@ namespace PAW_Jueves_API.Controllers
                 return Ok(new AsistenteResponse { Texto = "Todavía no hay movimientos este mes. Registre sus ingresos y gastos para recibir un resumen." });
 
             var tendencia = await _reportes.TendenciaAsync(idUsuario, a, m, 3, cancellationToken);
+            var quincenas = await _reportes.QuincenasAsync(idUsuario, a, m, cancellationToken);
             var moneda = await _reportes.MonedaAsync(idUsuario, cancellationToken);
-            var hash = CalcularHash(resumen, tendencia, moneda);
+            var hoy = ReglasGastos.HoyCostaRica();
+
+            // El estado de cada quincena ("en curso", "todavía no empieza") también forma parte del hash:
+            // cuando empieza la segunda quincena, el resumen se vuelve a generar aunque no haya movimientos nuevos.
+            var estado = quincenas.Select(q => hoy < DateOnly.FromDateTime(q.Desde) ? "pendiente"
+                : hoy <= DateOnly.FromDateTime(q.Hasta) ? "en curso" : "cerrada");
+            var hash = CalcularHash(new { resumen, tendencia, quincenas, estado, moneda });
 
             await using var context = Conexion();
             var guardado = await context.QueryFirstOrDefaultAsync<ResumenIAFila>(new CommandDefinition(
@@ -141,14 +148,14 @@ namespace PAW_Jueves_API.Controllers
                     new AsistenteResponse { Mensaje = PromptsAsistente.MensajeError(ErrorGemini.NoConfigurado) });
 
             var resultado = await _gemini.GenerarAsync(
-                PromptsAsistente.InstruccionResumen(resumen, tendencia, moneda),
+                PromptsAsistente.InstruccionResumen(resumen, tendencia, quincenas, moneda, hoy),
                 [new MensajeIA("user", "Escribe el resumen de este mes.")],
                 cancellationToken);
 
             if (!resultado.Exitoso)
                 return RespuestaDeError(resultado.Error);
 
-            var texto = resultado.Texto!.Length > 2000 ? resultado.Texto[..2000] : resultado.Texto;
+            var texto = resultado.Texto!.Length > 4000 ? resultado.Texto[..4000] : resultado.Texto;
             await context.ExecuteAsync(new CommandDefinition(
                 "sp_GuardarResumenIA", new { IdUsuario = idUsuario, Anno = a, Mes = m, Hash = hash, Texto = texto },
                 commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
@@ -168,10 +175,10 @@ namespace PAW_Jueves_API.Controllers
                 "sp_GuardarMensajeChat", new { IdUsuario = idUsuario, Rol = rol, Texto = texto },
                 commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
 
-        /// <summary>SHA-256 de los números del mes: si cambia un monto, cambia el hash y se regenera el resumen.</summary>
-        private static string CalcularHash(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda)
+        /// <summary>SHA-256 de los datos del resumen: si cambia un monto, cambia el hash y se regenera el resumen.</summary>
+        private static string CalcularHash(object datos)
         {
-            var json = JsonSerializer.Serialize(new { resumen, tendencia, moneda });
+            var json = JsonSerializer.Serialize(datos);
             return Convert.ToHexString(SHA256.HashData(Encoding.UTF8.GetBytes(json)));
         }
     }

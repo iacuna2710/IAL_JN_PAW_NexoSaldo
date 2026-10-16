@@ -5,19 +5,6 @@ using PAW_Jueves_API.Models;
 
 namespace PAW_Jueves_API.Services
 {
-    /// <summary>
-    /// Consulta los reportes del mes. Lo usan ReportesController (dashboard) y AsistenteController
-    /// (para darle a Gemini los mismos números que ve el usuario).
-    /// </summary>
-    public interface IReportesService
-    {
-        Task<ResumenMensualResponse> ResumenMensualAsync(int idUsuario, int anno, int mes, CancellationToken cancellationToken);
-
-        Task<IReadOnlyList<TendenciaMesResponse>> TendenciaAsync(int idUsuario, int anno, int mes, int meses, CancellationToken cancellationToken);
-
-        Task<string> MonedaAsync(int idUsuario, CancellationToken cancellationToken);
-    }
-
     public sealed class ReportesService(IConfiguration _configuration) : IReportesService
     {
         private SqlConnection Conexion() => new(_configuration.GetValue<string>("Variables:ConnectionString"));
@@ -53,6 +40,23 @@ namespace PAW_Jueves_API.Services
                 commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
 
             return datos.ToList();
+        }
+
+        public async Task<IReadOnlyList<QuincenaResponse>> QuincenasAsync(int idUsuario, int anno, int mes, CancellationToken cancellationToken)
+        {
+            await using var context = Conexion();
+            using var resultados = await context.QueryMultipleAsync(new CommandDefinition(
+                "sp_ResumenQuincenal",
+                new { IdUsuario = idUsuario, Anno = anno, Mes = mes },
+                commandType: CommandType.StoredProcedure, cancellationToken: cancellationToken));
+
+            var quincenas = (await resultados.ReadAsync<QuincenaResponse>()).ToList();
+            var gastos = (await resultados.ReadAsync<GastoQuincenaFila>()).ToList();
+
+            foreach (var quincena in quincenas)
+                quincena.PorCategoria = gastos.Where(g => g.Quincena == quincena.Quincena).ToList();
+
+            return quincenas;
         }
 
         public async Task<string> MonedaAsync(int idUsuario, CancellationToken cancellationToken)

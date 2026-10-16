@@ -33,21 +33,33 @@ namespace PAW_Jueves_API.Services
             {DatosFinancieros(resumen, tendencia, moneda)}
             """;
 
-        /// <summary>Instrucción para el resumen del dashboard.</summary>
-        public static string InstruccionResumen(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda) =>
+        /// <summary>
+        /// Instrucción para el resumen del dashboard: detallado y dividido por quincenas.
+        /// Se le pide un formato fijo de 4 párrafos con título para que siempre se lea igual.
+        /// </summary>
+        public static string InstruccionResumen(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia,
+            IReadOnlyList<QuincenaResponse> quincenas, string moneda, DateOnly hoy) =>
             $"""
             Eres el asistente de finanzas personales de la aplicación "Proyecto JN". Escribe en español, hablándole directamente
-            al usuario de "tú", un resumen de SUS finanzas del mes en 3 o 4 oraciones: el balance, la categoría con más gasto,
-            cómo se compara con los meses anteriores y un consejo práctico y concreto. Si algún presupuesto está al 80 % o más,
-            menciónalo. Texto plano: sin títulos, viñetas, asteriscos ni ningún otro markdown.
-            {AvisoAsesoria}
-            Usa ÚNICAMENTE estos datos y no inventes cifras:
+            al usuario de "tú", un resumen DETALLADO de SUS finanzas del mes, en texto plano: sin markdown, sin asteriscos, sin
+            viñetas ni guiones. Usa exactamente estos 4 párrafos, separados por una línea en blanco, y empieza cada uno con su
+            título seguido de dos puntos:
+            Primera quincena: ingresos, gastos y balance del 1 al 15, y en qué categorías gastaste, con sus montos.
+            Segunda quincena: lo mismo del 16 a fin de mes. Si está en curso o todavía no empieza, dilo con esas palabras.
+            Comparación: en qué quincena gastaste más y la diferencia (está calculada abajo), cómo va el mes frente a los meses
+            anteriores y el estado de cada presupuesto; avisa claramente si alguno está al 80 % o más.
+            Consejos: 2 o 3 consejos prácticos y concretos basados en estos números, en oraciones completas.
+            Termina el último párrafo con una oración corta que recuerde que son ideas generales y no asesoría financiera profesional.
+            Usa ÚNICAMENTE estos datos: no inventes cifras ni hagas cálculos nuevos; si un dato no está, no lo menciones.
 
-            {DatosFinancieros(resumen, tendencia, moneda)}
+            {DatosFinancieros(resumen, tendencia, moneda, quincenas, hoy)}
             """;
 
         /// <summary>Los números del mes en texto, para la IA.</summary>
-        public static string DatosFinancieros(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda)
+        /// <param name="quincenas">Opcional: si viene, se agregan los totales de cada quincena.</param>
+        /// <param name="hoy">Fecha actual, para decir si la quincena está en curso o todavía no empieza.</param>
+        public static string DatosFinancieros(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda,
+            IReadOnlyList<QuincenaResponse>? quincenas = null, DateOnly? hoy = null)
         {
             var simbolo = moneda switch { "USD" => "$", "EUR" => "€", _ => "₡" };
             string M(decimal monto) => simbolo + monto.ToString("N2", Cultura);
@@ -72,11 +84,51 @@ namespace PAW_Jueves_API.Services
                 }
             }
 
+            if (quincenas is { Count: > 0 })
+            {
+                foreach (var q in quincenas)
+                {
+                    var nombre = q.Quincena == 1 ? "Primera quincena" : "Segunda quincena";
+                    var estado = EstadoQuincena(q, hoy);
+                    texto.AppendLine($"{nombre} (del {q.Desde.Day} al {q.Hasta.Day} de {Mes(resumen.Anno, resumen.Mes)}){estado}: " +
+                                     $"ingresos {M(q.Ingresos)}; gastos {M(q.Gastos)}; balance {M(q.Balance)}; movimientos {q.CantidadMovimientos}.");
+                    texto.AppendLine(q.PorCategoria.Count == 0
+                        ? "  Gastos por categoría: ninguno."
+                        : "  Gastos por categoría: " + string.Join("; ", q.PorCategoria.Select(c => $"{c.Nombre} {M(c.Total)}")) + ".");
+                }
+
+                if (quincenas.Count == 2)
+                {
+                    var diferencia = quincenas[1].Gastos - quincenas[0].Gastos;
+                    texto.AppendLine(diferencia switch
+                    {
+                        > 0 => $"Diferencia de gastos: la segunda quincena gastó {M(diferencia)} más que la primera.",
+                        < 0 => $"Diferencia de gastos: la primera quincena gastó {M(-diferencia)} más que la segunda.",
+                        _ => "Diferencia de gastos: las dos quincenas gastaron lo mismo."
+                    });
+                }
+            }
+
             texto.AppendLine("Meses anteriores (ingresos / gastos):");
             foreach (var t in tendencia)
                 texto.AppendLine($"- {Mes(t.Anno, t.Mes)}: {M(t.Ingresos)} / {M(t.Gastos)}");
 
             return texto.ToString().TrimEnd();
+        }
+
+        /// <summary>" (en curso, hoy es 16)" o " (todavía no empieza)" según la fecha de hoy; vacío si ya terminó.</summary>
+        private static string EstadoQuincena(QuincenaResponse quincena, DateOnly? hoy)
+        {
+            if (hoy is not { } dia)
+                return string.Empty;
+
+            var desde = DateOnly.FromDateTime(quincena.Desde);
+            var hasta = DateOnly.FromDateTime(quincena.Hasta);
+
+            if (dia < desde)
+                return " (todavía no empieza)";
+
+            return dia <= hasta ? $" (en curso, hoy es {dia.Day})" : string.Empty;
         }
 
         /// <summary>Texto para el usuario según el error de Gemini.</summary>

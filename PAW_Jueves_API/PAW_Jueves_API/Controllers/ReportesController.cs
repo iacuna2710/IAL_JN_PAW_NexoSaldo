@@ -34,6 +34,16 @@ namespace PAW_Jueves_API.Controllers
             return Ok(await _reportes.TendenciaAsync(User.ObtenerIdUsuario(), a, m, meses, cancellationToken));
         }
 
+        /// <summary>GET /api/reportes/quincenas?anno=2026&amp;mes=10. Totales del 1 al 15 y del 16 a fin de mes.</summary>
+        [HttpGet("quincenas")]
+        public async Task<IActionResult> Quincenas([FromQuery] int? anno, [FromQuery] int? mes, CancellationToken cancellationToken)
+        {
+            if (!PeriodoValido(anno, mes, out var a, out var m))
+                return BadRequest(new ResponseApi { Mensaje = "Año o mes no válido" });
+
+            return Ok(await _reportes.QuincenasAsync(User.ObtenerIdUsuario(), a, m, cancellationToken));
+        }
+
         /// <summary>Si no se indica año y mes, usa el mes actual de Costa Rica.</summary>
         internal static bool PeriodoValido(int? anno, int? mes, out int a, out int m)
         {
