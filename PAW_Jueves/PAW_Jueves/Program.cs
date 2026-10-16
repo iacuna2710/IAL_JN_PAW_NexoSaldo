@@ -1,46 +1,58 @@
-// Punto de entrada de la WEB (ASP.NET Core MVC). Usa "top-level statements":
-// el compilador genera la clase Program y el método Main a partir de este archivo.
+// Program.cs de la WEB (ASP.NET Core MVC): es lo primero que se ejecuta al iniciar el proyecto.
+// Tiene dos partes:
+//   1. Registro de servicios: qué objetos puede crear ASP.NET Core y entregar a los controladores.
+//   2. Pipeline: la lista ordenada de pasos (middlewares) por los que pasa CADA petición HTTP.
+// Usa "top-level statements": el compilador genera la clase Program y el método Main.
 var builder = WebApplication.CreateBuilder(args);
 
-// ---------- Registro de servicios (contenedor de dependencias) ----------
+// ==================== 1. Registro de servicios ====================
 
-// Habilita controladores con vistas Razor (.cshtml)
+// Activa el patrón MVC: controladores (HomeController, ErrorController) + vistas Razor (.cshtml)
 builder.Services.AddControllersWithViews();
-// Registra HttpClient para inyectarlo en los controladores y llamar a la API
+// Permite pedir un HttpClient en el constructor de los controladores; se usa para llamar a la API
 builder.Services.AddHttpClient();
-// Habilita las variables de sesión (HttpContext.Session)
+// Permite guardar datos por usuario entre peticiones (HttpContext.Session), por ejemplo "Autenticado".
+// Los datos se guardan en la memoria del servidor y el navegador solo guarda una cookie con el id de sesión.
 builder.Services.AddSession();
 
 var app = builder.Build();
 
-// ---------- Pipeline: middlewares por los que pasa cada petición ----------
+// ==================== 2. Pipeline (el orden importa) ====================
 
 if (!app.Environment.IsDevelopment())
 {
-    // En producción obliga al navegador a usar siempre HTTPS
+    // Fuera de desarrollo: le indica al navegador que use siempre HTTPS con este sitio (HSTS)
     app.UseHsts();
 }
 
-// Activa la sesión para cada petición (debe ir antes de usar HttpContext.Session)
+// Carga la sesión del usuario al inicio de cada petición. Debe ir ANTES de cualquier código que
+// use HttpContext.Session (controladores y vistas como Error.cshtml).
 app.UseSession();
 
-// Las excepciones no controladas se redirigen a ErrorController.CapturarError
+// Si una acción lanza una excepción no controlada, se re-ejecuta en /Error/CapturarError,
+// que muestra la vista de error amigable (ver ErrorController).
 app.UseExceptionHandler("/Error/CapturarError");
 
+// Si alguien entra por http://, se le redirige a https://
 app.UseHttpsRedirection();
 
+// Decide qué controlador y acción atienden la URL (usa la ruta definida más abajo)
 app.UseRouting();
 
+// Revisa los atributos [Authorize]. Hoy ninguna acción los usa, así que no bloquea nada.
 app.UseAuthorization();
 
-// Sirve los archivos de wwwroot (css, js, imágenes, lib)
+// Sirve los archivos estáticos de wwwroot (css, js, imágenes, lib)
 app.MapStaticAssets();
 
-// Ruta por defecto: si la URL no indica controlador/acción, abre Home/Login.
-// {id?} es opcional; ChangePassword lo usa para recibir el token del link.
+// Ruta por defecto: /{controlador}/{acción}/{id opcional}
+//  - "/"                          → Home/Login (valores por defecto)
+//  - "/Home/Register"             → HomeController.Register()
+//  - "/Home/ChangePassword/abc"   → HomeController.ChangePassword(id: "abc")
 app.MapControllerRoute(
     name: "default",
     pattern: "{controller=Home}/{action=Login}/{id?}")
     .WithStaticAssets();
 
+// Arranca el servidor (https://localhost:7280 en el perfil https)
 app.Run();
