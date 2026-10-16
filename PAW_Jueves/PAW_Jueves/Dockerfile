@@ -2,6 +2,9 @@
 
 # Esta fase se usa cuando se ejecuta desde VS en modo rápido (valor predeterminado para la configuración de depuración)
 FROM mcr.microsoft.com/dotnet/aspnet:10.0 AS base
+# Carpeta de las llaves de Data Protection, con permisos para el usuario sin privilegios de la imagen.
+# docker-compose monta un volumen aqui para que las llaves sobrevivan al recrear el contenedor.
+RUN mkdir -p /app/App_Data/keys && chown -R $APP_UID /app/App_Data
 USER $APP_UID
 WORKDIR /app
 EXPOSE 8080

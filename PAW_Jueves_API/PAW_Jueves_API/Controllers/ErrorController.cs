@@ -1,6 +1,8 @@
 ﻿using Microsoft.AspNetCore.Diagnostics;
 using Microsoft.AspNetCore.Http;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.Data.SqlClient;
+using PAW_Jueves_API.Models;
 
 namespace PAW_Jueves_API.Controllers
 {
@@ -16,23 +18,34 @@ namespace PAW_Jueves_API.Controllers
     /// </summary>
     [Route("api/[controller]")]
     [ApiController]
-    public class ErrorController : ControllerBase
+    public class ErrorController(ILogger<ErrorController> _logger) : ControllerBase
     {
         /// <summary>
         /// Ruta /api/Error/CapturarError. Responde a quien hizo la petición original
         /// (normalmente la WEB) con un error 500 y un texto genérico.
         /// </summary>
         /// <returns>
-        /// 500 Internal Server Error con el texto "Se presentó un inconveniente técnico".
+        /// 500 Internal Server Error con un JSON { "mensaje": "..." }, el mismo formato que usan
+        /// los demás endpoints, para que la WEB pueda mostrar el texto en la alerta del formulario.
+        ///  - Si el error vino de SQL Server (por ejemplo, el contenedor de la BD está apagado),
+        ///    el mensaje lo dice, para no confundirlo con "usuario o contraseña incorrectos".
+        ///  - Cualquier otro error: "Se presentó un inconveniente técnico".
         /// </returns>
         [Route("CapturarError")]
         public IActionResult CapturarError()
         {
             // ex contiene la excepción original (ex.Error) y la ruta donde ocurrió (ex.Path).
-            // Por ahora no se usa; queda disponible para guardarla en una bitácora más adelante.
             var ex = HttpContext.Features.Get<IExceptionHandlerFeature>();
 
-            return StatusCode(StatusCodes.Status500InternalServerError, "Se presentó un inconveniente técnico");
+            // El detalle técnico se escribe en el log del servidor (consola / docker logs),
+            // nunca en la respuesta al cliente.
+            _logger.LogError(ex?.Error, "Error no controlado en {Ruta}", ex?.Path);
+
+            var mensaje = ex?.Error is SqlException
+                ? "No se pudo conectar con la base de datos. Verifique que SQL Server esté levantado."
+                : "Se presentó un inconveniente técnico";
+
+            return StatusCode(StatusCodes.Status500InternalServerError, new ResponseApi { Mensaje = mensaje });
         }
     }
 }

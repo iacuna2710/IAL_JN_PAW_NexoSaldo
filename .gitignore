@@ -361,3 +361,6 @@ MigrationBackup/
 
 # Fody - auto-generated XML schema
 FodyWeavers.xsd
+
+# Llaves de Data Protection de la WEB (se generan solas; nunca se versionan)
+**/App_Data/keys/

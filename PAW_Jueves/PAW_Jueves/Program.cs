@@ -3,6 +3,8 @@
 //   1. Registro de servicios: qué objetos puede crear ASP.NET Core y entregar a los controladores.
 //   2. Pipeline: la lista ordenada de pasos (middlewares) por los que pasa CADA petición HTTP.
 // Usa "top-level statements": el compilador genera la clase Program y el método Main.
+using Microsoft.AspNetCore.DataProtection;
+
 var builder = WebApplication.CreateBuilder(args);
 
 // ==================== 1. Registro de servicios ====================
@@ -14,6 +16,17 @@ builder.Services.AddHttpClient();
 // Permite guardar datos por usuario entre peticiones (HttpContext.Session), por ejemplo "Autenticado".
 // Los datos se guardan en la memoria del servidor y el navegador solo guarda una cookie con el id de sesión.
 builder.Services.AddSession();
+
+// Data Protection cifra el token antiforgery de los formularios y la cookie de sesión.
+// Por defecto sus llaves viven solo dentro del contenedor: al recrearlo se pierden y los
+// formularios abiertos fallan con "The key {...} was not found in the key ring".
+// Se guardan en una carpeta fija (App_Data/keys, o la de Variables:DataProtectionKeysPath)
+// que en docker-compose es un volumen, para que sobrevivan a los reinicios.
+var rutaLlaves = builder.Configuration.GetValue<string>("Variables:DataProtectionKeysPath")
+    ?? Path.Combine(builder.Environment.ContentRootPath, "App_Data", "keys");
+builder.Services.AddDataProtection()
+    .PersistKeysToFileSystem(new DirectoryInfo(rutaLlaves))
+    .SetApplicationName("PAW_Jueves");
 
 var app = builder.Build();
 

@@ -14,7 +14,15 @@
                 <div class="card-body p-4 p-md-5 text-center">
                     <h1 class="display-6 fw-semibold text-danger mb-3">Ha ocurrido un problema</h1>
                     <p class="text-secondary mb-4">
-                        Ocurrió un error mientras se procesaba tu solicitud. Intenta nuevamente en unos minutos.
+                        @* ErrorController pone un mensaje específico cuando sabe la causa (por ejemplo, la API está apagada) *@
+                        @if (!string.IsNullOrEmpty(ViewBag.Mensaje))
+                        {
+                            @ViewBag.Mensaje
+                        }
+                        else
+                        {
+                            <text>Ocurrió un error mientras se procesaba tu solicitud. Intenta nuevamente en unos minutos.</text>
+                        }
                     </p>
 
                     <div class="d-flex flex-column flex-sm-row justify-content-center gap-2 mb-4">

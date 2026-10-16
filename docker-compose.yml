@@ -17,7 +17,9 @@ services:
       retries: 10
       start_period: 20s
 
-  # Restaura BD/Respaldo.sql solo si JN_BD todavia no existe
+  # 1) Restaura BD/Respaldo.sql solo si JN_BD todavia no existe.
+  # 2) Despues, SIEMPRE aplica BD/Migraciones/*.sql en orden (son idempotentes).
+  #    Para aplicar migraciones nuevas con la BD ya levantada: docker compose up db-init
   db-init:
     image: mcr.microsoft.com/mssql/server:2022-latest
     environment:
@@ -35,6 +37,11 @@ services:
         else
           echo "JN_BD ya existe, no se restaura."
         fi
+        for SCRIPT in $$(ls /scripts/Migraciones/*.sql 2>/dev/null | sort); do
+          echo "Aplicando migracion $$(basename $$SCRIPT)..."
+          $$SQLCMD -b -i "$$SCRIPT" || exit 1
+        done
+        $$SQLCMD -h -1 -W -Q "SET NOCOUNT ON; SELECT 'Version del esquema: ' + CAST(MAX(Version) AS VARCHAR(10)) FROM JN_BD.dbo.SchemaVersion"
     depends_on:
       db:
         condition: service_healthy
@@ -64,8 +71,12 @@ services:
     environment:
       ASPNETCORE_ENVIRONMENT: Development
       Variables__ApiBaseUrl: "http://api:8080/api/"
+    volumes:
+      # Llaves de Data Protection (antiforgery y sesion); sin esto se pierden al recrear el contenedor
+      - web_keys:/app/App_Data/keys
     depends_on:
       - api
 
 volumes:
   jn_bd_data:
+  web_keys:
