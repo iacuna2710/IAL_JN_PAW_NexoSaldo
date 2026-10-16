@@ -102,7 +102,8 @@ namespace PAW_Jueves_API.Controllers
                 Token = _token.Generar(usuario.IdUsuario, usuario.NombreCompleto),
                 IdUsuario = usuario.IdUsuario,
                 NombreCompleto = usuario.NombreCompleto,
-                FotoPerfil = usuario.FotoPerfil
+                FotoPerfil = usuario.FotoPerfil,
+                Moneda = usuario.Moneda
             });
         }
 

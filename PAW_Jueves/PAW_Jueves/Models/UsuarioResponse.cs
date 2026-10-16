@@ -22,6 +22,9 @@
         /// <summary>Ruta de la foto de perfil, si el usuario ya subió una.</summary>
         public string? FotoPerfil { get; set; }
 
+        /// <summary>Moneda preferida; la API la envía al iniciar sesión.</summary>
+        public string Moneda { get; set; } = "CRC";
+
         /// <summary>Nombre completo del usuario, si la API lo envía. Si no, queda "".</summary>
         public string NombreCompleto { get; set; } = string.Empty;
 

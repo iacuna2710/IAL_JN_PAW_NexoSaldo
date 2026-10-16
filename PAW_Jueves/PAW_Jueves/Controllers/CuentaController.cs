@@ -175,7 +175,10 @@ namespace PAW_Jueves.Controllers
                 return SesionVencida();
 
             if (respuesta.Exitosa)
+            {
+                HttpContext.Session.SetString(ClavesSesion.Moneda, model.Moneda);
                 TempData["Exito"] = "Se guardaron sus preferencias";
+            }
             else
                 TempData["Error"] = "No se pudieron guardar sus preferencias";
 

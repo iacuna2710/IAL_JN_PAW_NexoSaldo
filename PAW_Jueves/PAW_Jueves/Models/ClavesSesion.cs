@@ -18,6 +18,9 @@ namespace PAW_Jueves.Models
         /// <summary>Ruta de la foto de perfil (/uploads/perfiles/...) o vacío si usa la imagen por defecto.</summary>
         public const string FotoPerfil = "FotoPerfil";
 
+        /// <summary>Moneda preferida (CRC, USD o EUR) para mostrar los montos.</summary>
+        public const string Moneda = "Moneda";
+
         /// <summary>Vale 1 mientras la pantalla está bloqueada (Lock Screen). La sesión sigue abierta.</summary>
         public const string Bloqueado = "Bloqueado";
 

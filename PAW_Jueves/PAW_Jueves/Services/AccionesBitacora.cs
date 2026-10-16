@@ -17,7 +17,9 @@ namespace PAW_Jueves.Services
             ["CambioContrasennaFallido"] = ("Intento fallido de cambio de contraseña", "bi-exclamation-triangle", true),
             ["Bloqueo"] = ("Bloqueó la pantalla", "bi-lock", false),
             ["Desbloqueo"] = ("Desbloqueó la pantalla", "bi-unlock", false),
-            ["DesbloqueoFallido"] = ("Intento fallido de desbloqueo", "bi-exclamation-triangle", true)
+            ["DesbloqueoFallido"] = ("Intento fallido de desbloqueo", "bi-exclamation-triangle", true),
+            ["MovimientoCreado"] = ("Registró un movimiento", "bi-plus-circle", false),
+            ["MovimientoEliminado"] = ("Eliminó un movimiento", "bi-trash", false)
         };
 
         public static string Texto(string accion) => Acciones.TryGetValue(accion, out var a) ? a.Texto : accion;

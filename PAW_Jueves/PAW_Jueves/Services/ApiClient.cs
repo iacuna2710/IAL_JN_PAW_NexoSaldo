@@ -42,6 +42,10 @@ namespace PAW_Jueves.Services
         public Task<RespuestaApi<T>> PostAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
             EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Post, ruta), cancellationToken);
 
+        /// <summary>DELETE. Ejemplo: DeleteAsync&lt;UsuarioResponse&gt;("movimientos/5").</summary>
+        public Task<RespuestaApi<T>> DeleteAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
+            EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Delete, ruta), cancellationToken);
+
         /// <summary>GET. Ejemplo: GetAsync&lt;PerfilResponse&gt;("Usuario/Perfil").</summary>
         public Task<RespuestaApi<T>> GetAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
             EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Get, ruta), cancellationToken);

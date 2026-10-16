@@ -71,6 +71,7 @@ namespace PAW_Jueves.Controllers
                 HttpContext.Session.SetInt32(ClavesSesion.IdUsuario, respuesta.Datos.IdUsuario);
                 HttpContext.Session.SetString(ClavesSesion.NombreCompleto, respuesta.Datos.NombreCompleto);
                 HttpContext.Session.SetString(ClavesSesion.FotoPerfil, respuesta.Datos.FotoPerfil ?? string.Empty);
+                HttpContext.Session.SetString(ClavesSesion.Moneda, respuesta.Datos.Moneda);
                 HttpContext.Session.SetInt32(ClavesSesion.Autenticado, 1);
                 return RedirectToAction("Index", "Home");
             }
@@ -168,21 +169,35 @@ namespace PAW_Jueves.Controllers
         }
 
         /// <summary>
-        /// GET /Home/Index. Pantalla principal después de iniciar sesión. [Autenticado] redirige
-        /// al Login si no hay sesión (antes se podía abrir escribiendo la URL directamente).
+        /// GET /Home/Index?periodo=2026-10. Dashboard: totales del mes, gasto por categoría, tendencia
+        /// de 6 meses, presupuestos y actividad reciente. [Autenticado] redirige al Login si no hay sesión.
         /// </summary>
         [Autenticado]
-        public async Task<IActionResult> Index(CancellationToken cancellationToken)
+        public async Task<IActionResult> Index(string? periodo, CancellationToken cancellationToken)
         {
-            var actividad = await _api.GetAsync<List<ActividadModel>>("Usuario/Actividad?top=5", cancellationToken);
+            var (anno, mes) = FormatoMoneda.LeerPeriodo(periodo, FormatoMoneda.HoyCostaRica());
 
-            if (actividad.Estado == HttpStatusCode.Unauthorized)
+            // Las tres consultas son independientes: se lanzan a la vez y se espera a que terminen todas
+            var resumenTarea = _api.GetAsync<ResumenMensualModel>($"reportes/resumen-mensual?anno={anno}&mes={mes}", cancellationToken);
+            var tendenciaTarea = _api.GetAsync<List<TendenciaMesModel>>($"reportes/tendencia?anno={anno}&mes={mes}&meses=6", cancellationToken);
+            var actividadTarea = _api.GetAsync<List<ActividadModel>>("Usuario/Actividad?top=5", cancellationToken);
+            await Task.WhenAll(resumenTarea, tendenciaTarea, actividadTarea);
+
+            if (resumenTarea.Result.Estado == HttpStatusCode.Unauthorized)
             {
                 HttpContext.Session.Clear();
                 return RedirectToAction("Login", "Home");
             }
 
-            return View(actividad.Datos ?? []);
+            return View(new DashboardViewModel
+            {
+                Anno = anno,
+                Mes = mes,
+                Moneda = HttpContext.Session.GetString(ClavesSesion.Moneda) ?? "CRC",
+                Resumen = resumenTarea.Result.Datos ?? new ResumenMensualModel { Anno = anno, Mes = mes },
+                Tendencia = tendenciaTarea.Result.Datos ?? [],
+                Actividad = actividadTarea.Result.Datos ?? []
+            });
         }
 
         /// <summary>

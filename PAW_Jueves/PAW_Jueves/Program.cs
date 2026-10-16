@@ -3,7 +3,9 @@
 //   1. Registro de servicios: qué objetos puede crear ASP.NET Core y entregar a los controladores.
 //   2. Pipeline: la lista ordenada de pasos (middlewares) por los que pasa CADA petición HTTP.
 // Usa "top-level statements": el compilador genera la clase Program y el método Main.
+using System.Globalization;
 using System.Threading.RateLimiting;
+using Microsoft.AspNetCore.Localization;
 using Microsoft.AspNetCore.DataProtection;
 using PAW_Jueves.Services;
 
@@ -79,6 +81,16 @@ if (!app.Environment.IsDevelopment())
     // Fuera de desarrollo: le indica al navegador que use siempre HTTPS con este sitio (HSTS)
     app.UseHsts();
 }
+
+// Los formularios mandan los números con punto decimal (input type="number": 5000.50). Si el
+// servidor usa una cultura como es-CR (coma decimal), "5000.50" se leería mal. Por eso los datos
+// que llegan se interpretan con la cultura invariante; para MOSTRAR montos se usa FormatoMoneda (es-CR).
+app.UseRequestLocalization(new RequestLocalizationOptions
+{
+    DefaultRequestCulture = new RequestCulture(CultureInfo.InvariantCulture),
+    SupportedCultures = [CultureInfo.InvariantCulture],
+    SupportedUICultures = [CultureInfo.InvariantCulture]
+});
 
 // Carga la sesión del usuario al inicio de cada petición. Debe ir ANTES de cualquier código que
 // use HttpContext.Session (controladores y vistas como Error.cshtml).

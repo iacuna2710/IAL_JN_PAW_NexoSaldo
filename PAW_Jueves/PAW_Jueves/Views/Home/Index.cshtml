@@ -1,20 +1,119 @@
-﻿@model List<ActividadModel>
+﻿@using PAW_Jueves.Services
+@model DashboardViewModel
+@{
+    var r = Model.Resumen;
+    var periodo = $"{Model.Anno:0000}-{Model.Mes:00}";
+    var gastosCategorias = r.PorCategoria.Where(c => c.Total > 0).ToList();
+    var presupuestos = r.PorCategoria.Where(c => c.PresupuestoMensual is > 0).OrderByDescending(c => c.PorcentajeUsado).ToList();
 
-<div class="page-header">
+    // Datos de los gráficos. Json.Serialize escapa los caracteres peligrosos (<, >, &), así que un
+    // nombre de categoría con "</script>" no puede romper la página (XSS).
+    var datosGraficos = new
+    {
+        moneda = FormatoMoneda.Simbolo(Model.Moneda),
+        categorias = gastosCategorias.Select(c => new { nombre = c.Nombre, color = c.Color, total = c.Total }),
+        tendencia = Model.Tendencia.Select(t => new { mes = FormatoMoneda.MesCorto(t.Anno, t.Mes), ingresos = t.Ingresos, gastos = t.Gastos })
+    };
+}
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center gap-3">
   <div>
     <h1 class="page-title">Hola, @Context.Session.GetString(ClavesSesion.NombreCompleto)</h1>
-    <p class="page-subtitle">Este es su panel principal</p>
+    <p class="page-subtitle">Resumen de @FormatoMoneda.NombreMes(Model.Anno, Model.Mes)</p>
+  </div>
+  <form method="get" asp-action="Index" class="d-flex gap-2 align-items-center">
+    <label for="periodo" class="visually-hidden">Mes</label>
+    <input id="periodo" name="periodo" type="month" class="form-control form-control-custom" value="@periodo" onchange="this.form.submit()">
+    <a asp-controller="Movimientos" asp-action="Crear" class="btn-custom btn-custom-primary text-nowrap"><i class="bi bi-plus-lg"></i> Movimiento</a>
+  </form>
+</div>
+
+<!-- KPIs del mes -->
+<div class="row g-4 mb-4">
+  <div class="col-12 col-md-4">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <div class="text-secondary small mb-1"><i class="bi bi-arrow-down-circle text-success"></i> Ingresos</div>
+      <div class="h3 mb-0 text-success">@FormatoMoneda.Mostrar(r.Ingresos, Model.Moneda)</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <div class="text-secondary small mb-1"><i class="bi bi-arrow-up-circle text-danger"></i> Gastos</div>
+      <div class="h3 mb-0 text-danger">@FormatoMoneda.Mostrar(r.Gastos, Model.Moneda)</div>
+    </div>
+  </div>
+  <div class="col-12 col-md-4">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <div class="text-secondary small mb-1"><i class="bi bi-wallet2"></i> Balance</div>
+      <div class="h3 mb-0 @(r.Balance >= 0 ? "text-success" : "text-danger")">@FormatoMoneda.Mostrar(r.Balance, Model.Moneda)</div>
+      <div class="text-secondary fs-xs mt-1">@r.CantidadMovimientos movimientos este mes</div>
+    </div>
+  </div>
+</div>
+
+<!-- Gráficos -->
+<div class="row g-4 mb-4">
+  <div class="col-12 col-xl-5">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <h2 class="card-title h5 mb-3"><i class="bi bi-pie-chart"></i> Gastos por categoría</h2>
+      @if (gastosCategorias.Any())
+      {
+        <div id="grafico-categorias"></div>
+      }
+      else
+      {
+        <p class="text-secondary small mb-0">No hay gastos este mes. <a asp-controller="Movimientos" asp-action="Crear">Registrar uno</a></p>
+      }
+    </div>
+  </div>
+  <div class="col-12 col-xl-7">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <h2 class="card-title h5 mb-3"><i class="bi bi-bar-chart"></i> Últimos 6 meses</h2>
+      <div id="grafico-tendencia"></div>
+    </div>
   </div>
 </div>
 
 <div class="row g-4">
+  <!-- Presupuestos -->
+  <div class="col-12 col-lg-6">
+    <div class="card p-4 border-light shadow-sm h-100">
+      <div class="d-flex justify-content-between align-items-center mb-3">
+        <h2 class="card-title h5 mb-0"><i class="bi bi-bullseye"></i> Presupuestos</h2>
+        <a asp-controller="Categorias" asp-action="Index" class="small">Definir</a>
+      </div>
+      @if (!presupuestos.Any())
+      {
+        <p class="text-secondary small mb-0">Aún no definió presupuestos. Hágalo en Categorías para recibir alertas al 80 % y al 100 %.</p>
+      }
+      @foreach (var p in presupuestos)
+      {
+        var porcentaje = Math.Round(p.PorcentajeUsado);
+        var clase = porcentaje >= 100 ? "bg-danger" : porcentaje >= 80 ? "bg-warning" : "bg-success";
+        <div class="progress-container">
+          <div class="progress-label-row">
+            <span class="progress-label">@p.Nombre</span>
+            <span class="progress-value">@FormatoMoneda.Mostrar(p.Total, Model.Moneda) / @FormatoMoneda.Mostrar(p.PresupuestoMensual!.Value, Model.Moneda) (@porcentaje %)</span>
+          </div>
+          <div class="progress" role="progressbar" aria-label="@p.Nombre" aria-valuenow="@porcentaje" aria-valuemin="0" aria-valuemax="100">
+            <div class="progress-bar @clase" style="width: @(Math.Min(porcentaje, 100))%"></div>
+          </div>
+        </div>
+      }
+    </div>
+  </div>
+
+  <!-- Actividad -->
   <div class="col-12 col-lg-6">
     <div class="card p-4 border-light shadow-sm h-100">
       <div class="d-flex justify-content-between align-items-center mb-3">
         <h2 class="card-title h5 mb-0"><i class="bi bi-clock-history"></i> Actividad reciente</h2>
         <a asp-controller="Cuenta" asp-action="MiCuenta" class="small">Ver más</a>
       </div>
-      <partial name="_ActividadReciente" model="Model" />
+      <partial name="_ActividadReciente" model="Model.Actividad" />
     </div>
   </div>
 </div>
+
+<script type="application/json" id="datos-dashboard">@Json.Serialize(datosGraficos)</script>
+<script src="~/js/gastos-dashboard.js" asp-append-version="true" defer></script>

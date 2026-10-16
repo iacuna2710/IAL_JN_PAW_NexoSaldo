@@ -42,14 +42,20 @@
         </ul>
       </div>
 
-      <!-- Group: Components -->
+      <!-- Grupo: Finanzas (módulo de gastos personales) -->
       <div class="sidebar-menu-section">
-        <div class="sidebar-menu-title">Components</div>
+        <div class="sidebar-menu-title">Finanzas</div>
         <ul class="sidebar-menu-list">
           <li class="sidebar-menu-item">
-            <a href="tables-basic.html" class="sidebar-menu-link" id="menu-basictables" title="Basic Tables">
-              <i class="bi bi-table"></i>
-              <span>Basic Tables</span>
+            <a asp-controller="Movimientos" asp-action="Index" class="sidebar-menu-link" id="menu-movimientos" title="Movimientos">
+              <i class="bi bi-arrow-left-right"></i>
+              <span>Movimientos</span>
+            </a>
+          </li>
+          <li class="sidebar-menu-item">
+            <a asp-controller="Categorias" asp-action="Index" class="sidebar-menu-link" id="menu-categorias" title="Categorías">
+              <i class="bi bi-tags"></i>
+              <span>Categorías</span>
             </a>
           </li>
         </ul>
