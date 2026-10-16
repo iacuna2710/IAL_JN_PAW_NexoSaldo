@@ -18,9 +18,13 @@ namespace PAW_Jueves_API.Options
         /// <summary>Clave de Google AI Studio. Vacía = asistente deshabilitado.</summary>
         public string? ApiKey { get; init; }
 
-        /// <summary>Modelo a usar. Se puede cambiar sin tocar código (ver los disponibles en AI Studio).</summary>
+        /// <summary>
+        /// Modelo a usar. Se puede cambiar sin tocar código (ver los disponibles en AI Studio).
+        /// Por defecto el alias "-latest" de Flash-Lite: Google lo actualiza solo, tiene más cuota
+        /// gratuita y suele estar menos saturado que Flash (que a veces responde 503 por demanda).
+        /// </summary>
         [Required]
-        public string Modelo { get; init; } = "gemini-3.8-flash";
+        public string Modelo { get; init; } = "gemini-flash-lite-latest";
 
         [Required, Url]
         public string BaseUrl { get; init; } = "https://generativelanguage.googleapis.com/v1beta";

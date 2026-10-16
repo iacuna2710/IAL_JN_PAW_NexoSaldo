@@ -42,8 +42,9 @@ que muestra "no configurado".
 
 3. Reinicie la API.
 
-El modelo se cambia sin tocar código con `Gemini:Modelo` (por defecto `gemini-3.8-flash`). Si el plan gratuito
-le da error de cuota o de acceso con ese modelo, revise en AI Studio qué modelos tiene disponibles, por ejemplo:
+El modelo se cambia sin tocar código con `Gemini:Modelo` (por defecto `gemini-flash-lite-latest`, un alias que
+Google actualiza solo). Si el asistente dice que Gemini está saturado (503) o sin cuota (429), pruebe otro modelo
+disponible para su clave, por ejemplo `gemini-3.5-flash` o `gemini-3.1-flash-lite`:
 
 ```bash
 dotnet user-secrets set "Gemini:Modelo" "NOMBRE_DEL_MODELO" --project PAW_Jueves_API/PAW_Jueves_API
