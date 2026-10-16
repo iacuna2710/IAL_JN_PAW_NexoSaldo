@@ -1,13 +1,16 @@
 using Dapper;
 using PAW_Jueves_API.Models;
+using PAW_Jueves_API.Services;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.Data.SqlClient;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace PAW_Jueves_API.Controllers
 {
     [ApiController]
     [Route("api/[controller]")]
-    public class HomeController(IConfiguration _configuration) : ControllerBase
+    public class HomeController(IConfiguration _configuration, IPasswordService _password) : ControllerBase
     {
         [HttpPost]
         [Route("Login")]
@@ -53,10 +56,20 @@ namespace PAW_Jueves_API.Controllers
         {
             using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
 
+            //Validar que el usuario exista
             var parameters = new DynamicParameters();
             parameters.Add("@CorreoElectronico", model.CorreoElectronico);
 
             var response = context.QueryFirstOrDefault<UsuarioResponse>("sp_ConsultarCorreo", parameters);
+
+            if (response == null)
+                return NotFound(new UsuarioResponse { Mensaje = "No se validó la información correctamente" });
+
+            //Mecanismo de recuperación
+            var usuarioId = _password.Cifrar(response.IdUsuario.ToString(), TimeSpan.FromHours(1));
+            var linkCorreo = _configuration.GetValue<string>("Variables:LinkForgot") + usuarioId;
+
+            //Enviar correo electrónico
 
             return Ok(response);
         }

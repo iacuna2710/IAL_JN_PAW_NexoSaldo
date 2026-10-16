@@ -83,10 +83,21 @@ namespace PAW_Jueves.Controllers
 
             var response = client.PostAsJsonAsync(url, model).Result;
 
+            if (response.StatusCode == HttpStatusCode.OK)
+                return RedirectToAction("Login", "Home");
+
+            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
+            ViewBag.Mensaje = datos?.Mensaje;
+
             return View();
         }
 
         #endregion
+
+        public IActionResult ChangePassword(string id)
+        {
+            return View();
+        }
 
         public IActionResult Index()
         {
