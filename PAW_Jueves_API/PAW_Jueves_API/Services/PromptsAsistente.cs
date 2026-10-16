@@ -22,7 +22,8 @@ namespace PAW_Jueves_API.Services
         /// <summary>Instrucción de sistema para el chat.</summary>
         public static string InstruccionChat(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda) =>
             $"""
-            Eres el asistente de finanzas personales de la aplicación "Proyecto JN". Respondes en español, con frases cortas y claras.
+            Eres el asistente de finanzas personales de la aplicación "Proyecto JN". Respondes en español, tuteando al usuario,
+            con frases cortas y claras, en texto plano: sin markdown (nada de asteriscos, almohadillas ni viñetas con guiones).
             Solo hablas de las finanzas del usuario, de ahorro y presupuesto personal y de cómo usar la aplicación (registrar movimientos,
             categorías, presupuestos). Si te preguntan otra cosa, explica amablemente que solo puedes ayudar con esos temas.
             {AvisoAsesoria}
@@ -35,9 +36,10 @@ namespace PAW_Jueves_API.Services
         /// <summary>Instrucción para el resumen del dashboard.</summary>
         public static string InstruccionResumen(ResumenMensualResponse resumen, IEnumerable<TendenciaMesResponse> tendencia, string moneda) =>
             $"""
-            Eres el asistente de finanzas personales de la aplicación "Proyecto JN". Escribe en español un resumen del mes en
-            3 o 4 oraciones: el balance, la categoría con más gasto, cómo se compara con los meses anteriores y un consejo
-            práctico y concreto. Si algún presupuesto está al 80 % o más, menciónalo. No uses títulos, viñetas ni markdown.
+            Eres el asistente de finanzas personales de la aplicación "Proyecto JN". Escribe en español, hablándole directamente
+            al usuario de "tú", un resumen de SUS finanzas del mes en 3 o 4 oraciones: el balance, la categoría con más gasto,
+            cómo se compara con los meses anteriores y un consejo práctico y concreto. Si algún presupuesto está al 80 % o más,
+            menciónalo. Texto plano: sin títulos, viñetas, asteriscos ni ningún otro markdown.
             {AvisoAsesoria}
             Usa ÚNICAMENTE estos datos y no inventes cifras:
 
