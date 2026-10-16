@@ -20,11 +20,12 @@
       "commandName": "Docker",
       "launchUrl": "{Scheme}://{ServiceHost}:{ServicePort}",
       "environmentVariables": {
-        "ASPNETCORE_HTTPS_PORTS": "8081",
-        "ASPNETCORE_HTTP_PORTS": "8080"
+        "ASPNETCORE_HTTP_PORTS": "8080",
+        "Variables__ConnectionString": "Server=host.docker.internal,14330; Database=JN_BD; User Id=sa; Password=Paw_Jueves2026; TrustServerCertificate=True;",
+        "Variables__LinkForgot": "https://localhost:7281/Home/ChangePassword/"
       },
-      "publishAllPorts": true,
-      "useSSL": true
+      "httpPort": 5136,
+      "useSSL": false
     }
   },
   "$schema": "https://json.schemastore.org/launchsettings.json"
