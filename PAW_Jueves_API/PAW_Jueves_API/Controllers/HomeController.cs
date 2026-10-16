@@ -1,4 +1,6 @@
+﻿using System.Data;
 using Dapper;
+using Microsoft.AspNetCore.RateLimiting;
 using PAW_Jueves_API.Models;
 using PAW_Jueves_API.Services;
 using Microsoft.AspNetCore.Mvc;
@@ -30,79 +32,106 @@ namespace PAW_Jueves_API.Controllers
     ///    conexión a SQL Server) y "Variables:LinkForgot" (inicio del link de recuperación).
     ///  - _password: servicio IPasswordService (implementado por PasswordService) que cifra el
     ///    id del usuario para el link de recuperación. Se registró en Program.cs.
+    ///  - _hash: IHashService, hashea y verifica contraseñas con BCrypt.
+    ///  - _token: ITokenService, genera el token JWT que se entrega al iniciar sesión.
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
-    public class HomeController(IConfiguration _configuration, IPasswordService _password) : ControllerBase
+    public class HomeController(IConfiguration _configuration, IPasswordService _password,
+        IHashService _hash, ITokenService _token) : ControllerBase
     {
         /// <summary>
-        /// POST /api/Home/Login. Verifica si existe un usuario ACTIVO (Estado = 1) con ese
-        /// correo y esa contraseña, usando el procedimiento sp_IniciarSesion.
+        /// POST /api/Home/Login. Verifica el correo y la contraseña de un usuario ACTIVO.
+        ///  1. sp_ConsultarCredenciales trae el usuario por correo, con su contraseña guardada.
+        ///  2. IHashService compara la contraseña escrita con la guardada (hash de BCrypt).
+        ///  3. Si el usuario todavía tenía la contraseña en texto plano (usuarios viejos), se
+        ///     reemplaza por el hash en este mismo momento (sp_ActualizarContrasenna).
+        ///  4. Se genera un token JWT con el IdUsuario, que la WEB guarda en su sesión.
+        /// [EnableRateLimiting("credenciales")] limita los intentos por IP (ver Program.cs).
         /// </summary>
         /// <param name="model">JSON con CorreoElectronico y Contrasenna enviado por la WEB.</param>
         /// <returns>
-        /// - 200 OK: las credenciales coinciden. El cuerpo trae IdUsuario y NombreCompleto.
-        /// - 404 Not Found: no hay coincidencia (correo o contraseña incorrectos, o usuario
-        ///   inactivo). El cuerpo trae Mensaje = "No se validó la información correctamente".
+        /// - 200 OK: credenciales correctas. Cuerpo: token, idUsuario y nombreCompleto.
+        /// - 404 Not Found: correo o contraseña incorrectos, o usuario inactivo.
+        ///   Mensaje = "No se validó la información correctamente" (no se dice cuál de los dos falló).
         /// - 400 Bad Request: algún campo llegó vacío (lo responde [ApiController] solo).
+        /// - 429 Too Many Requests: demasiados intentos desde la misma IP.
         /// </returns>
         [HttpPost]
         [Route("Login")]
-        public IActionResult Login(LoginRequestModel model)
+        [EnableRateLimiting("credenciales")]
+        public async Task<IActionResult> Login(LoginRequestModel model, CancellationToken cancellationToken)
         {
-            // Abre la conexión a SQL Server. "using var" la cierra y libera automáticamente
-            // cuando el método termina, aunque ocurra una excepción.
-            using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
+            await using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
 
-            // Parámetros del procedimiento. El nombre ("@CorreoElectronico") debe ser idéntico
-            // al que declara el procedimiento en SQL Server.
-            var parameters = new DynamicParameters();
-            parameters.Add("@CorreoElectronico", model.CorreoElectronico);
-            parameters.Add("@Contrasenna", model.Contrasenna);
+            var usuario = await context.QueryFirstOrDefaultAsync<CredencialesUsuario>(new CommandDefinition(
+                "sp_ConsultarCredenciales",
+                new { model.CorreoElectronico },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken));
 
-            // Ejecuta sp_IniciarSesion y toma SOLO la primera fila del resultado convertida
-            // a UsuarioResponse. Si el procedimiento no devuelve filas, response queda en null.
-            var response = context.QueryFirstOrDefault<UsuarioResponse>("sp_IniciarSesion", parameters);
+            var resultado = usuario == null
+                ? ResultadoVerificacion.Incorrecta
+                : _hash.Verificar(model.Contrasenna, usuario.Contrasenna);
 
-            // null = no se encontró un usuario con esas credenciales
-            if(response == null)
+            if (usuario == null || resultado == ResultadoVerificacion.Incorrecta)
                 return NotFound(new UsuarioResponse { Mensaje = "No se validó la información correctamente" });
 
-            return Ok(response);
+            // Migración transparente: el usuario escribió bien su contraseña vieja (texto plano),
+            // así que se aprovecha para guardarla ya hasheada.
+            if (resultado == ResultadoVerificacion.CorrectaRequiereHash)
+            {
+                await context.ExecuteAsync(new CommandDefinition(
+                    "sp_ActualizarContrasenna",
+                    new { usuario.IdUsuario, Contrasenna = _hash.Hashear(model.Contrasenna) },
+                    commandType: CommandType.StoredProcedure,
+                    cancellationToken: cancellationToken));
+            }
+
+            return Ok(new LoginResponse
+            {
+                Token = _token.Generar(usuario.IdUsuario, usuario.NombreCompleto),
+                IdUsuario = usuario.IdUsuario,
+                NombreCompleto = usuario.NombreCompleto
+            });
         }
 
         /// <summary>
         /// POST /api/Home/Register. Crea un usuario nuevo con el procedimiento
         /// sp_RegistrarUsuario. Ese procedimiento SOLO inserta si no existe ya otro usuario
         /// con la misma Identificacion o el mismo CorreoElectronico; el usuario nuevo queda
-        /// con Estado = 1 (activo).
+        /// con Estado = 1 (activo). La contraseña se guarda como hash de BCrypt, nunca en texto plano.
         /// </summary>
         /// <param name="model">JSON con Identificacion, NombreCompleto, CorreoElectronico y Contrasenna.</param>
         /// <returns>
-        /// - 200 OK: se insertó 1 fila. Mensaje = "Se registró la información correctamente".
-        /// - 422 Unprocessable Entity: no se insertó nada porque la identificación o el correo
-        ///   ya estaban registrados. Mensaje = "No se registró la información correctamente".
+        /// - 200 OK: se insertó el usuario. Mensaje = "Se registró la información correctamente".
+        /// - 409 Conflict: no se insertó porque la identificación o el correo ya estaban registrados.
         /// - 400 Bad Request: algún campo llegó vacío (lo responde [ApiController] solo).
+        /// - 429 Too Many Requests: demasiados intentos desde la misma IP.
         /// </returns>
         [HttpPost]
         [Route("Register")]
-        public IActionResult Register(RegisterRequestModel model)
+        [EnableRateLimiting("credenciales")]
+        public async Task<IActionResult> Register(RegisterRequestModel model, CancellationToken cancellationToken)
         {
-            using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
+            await using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
 
             var parameters = new DynamicParameters();
             parameters.Add("@Identificacion", model.Identificacion);
             parameters.Add("@NombreCompleto", model.NombreCompleto);
             parameters.Add("@CorreoElectronico", model.CorreoElectronico);
-            parameters.Add("@Contrasenna", model.Contrasenna);
+            parameters.Add("@Contrasenna", _hash.Hashear(model.Contrasenna));
 
-            // Execute se usa para instrucciones que no devuelven filas (INSERT, UPDATE, DELETE).
-            // Retorna cuántas filas se afectaron: 1 si se insertó el usuario, 0 si el
-            // procedimiento no insertó porque el usuario ya existía.
-            var response = context.Execute("sp_RegistrarUsuario", parameters);
+            // ExecuteAsync devuelve cuántas filas se afectaron: 1 si se insertó el usuario;
+            // -1 si el procedimiento no insertó nada porque el usuario ya existía.
+            var filas = await context.ExecuteAsync(new CommandDefinition(
+                "sp_RegistrarUsuario",
+                parameters,
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken));
 
-            if(response <= 0)
-                return UnprocessableEntity(new UsuarioResponse { Mensaje = "No se registró la información correctamente" });
+            if (filas <= 0)
+                return Conflict(new UsuarioResponse { Mensaje = "La identificación o el correo electrónico ya están registrados" });
 
             return Ok(new UsuarioResponse { Mensaje = "Se registró la información correctamente" });
         }

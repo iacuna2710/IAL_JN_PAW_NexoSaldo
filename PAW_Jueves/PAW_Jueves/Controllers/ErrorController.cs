@@ -30,7 +30,7 @@ namespace PAW_Jueves.Controllers
             // HttpRequestException = la WEB no logró conectarse con la API (apagada, puerto
             // equivocado en Variables:ApiBaseUrl, etc.). Se avisa con un texto específico para
             // no confundirlo con un error de datos. Error.cshtml lo muestra si viene con texto.
-            // .Result (usado en HomeController) envuelve la excepción real en una AggregateException,
+            // Si algún código usa .Result, la excepción real llega envuelta en una AggregateException,
             // por eso se revisa también la excepción interna.
             var error = ex?.Error is AggregateException agregada ? agregada.InnerException : ex?.Error;
             if (error is HttpRequestException)

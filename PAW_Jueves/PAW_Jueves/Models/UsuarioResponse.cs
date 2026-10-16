@@ -13,6 +13,12 @@
     /// </summary>
     public class UsuarioResponse
     {
+        /// <summary>Token JWT que entrega la API al iniciar sesión. En las demás respuestas viene vacío.</summary>
+        public string Token { get; set; } = string.Empty;
+
+        /// <summary>Id del usuario; la API lo envía al iniciar sesión. En errores vale 0.</summary>
+        public int IdUsuario { get; set; }
+
         /// <summary>Nombre completo del usuario, si la API lo envía. Si no, queda "".</summary>
         public string NombreCompleto { get; set; } = string.Empty;
 

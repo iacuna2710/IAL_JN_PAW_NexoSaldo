@@ -1,99 +1,98 @@
-using PAW_Jueves.Models;
+﻿using System.Net;
 using Microsoft.AspNetCore.Mvc;
-using System.Diagnostics;
-using System.Net;
+using Microsoft.AspNetCore.RateLimiting;
+using PAW_Jueves.Filters;
+using PAW_Jueves.Models;
+using PAW_Jueves.Services;
 
 namespace PAW_Jueves.Controllers
 {
     /// <summary>
     /// Controlador MVC principal de la WEB. Atiende las pantallas Login, Register, Forgot,
-    /// ChangePassword e Index. Cada acción devuelve una vista de Views/Home con el mismo nombre
-    /// del método (por ejemplo, Login() muestra Views/Home/Login.cshtml).
+    /// ChangePassword, Index y la acción Logout. Cada acción devuelve una vista de Views/Home con el
+    /// mismo nombre del método (por ejemplo, Login() muestra Views/Home/Login.cshtml).
     ///
     /// La WEB NO se conecta a la base de datos. Para cada formulario hace esto:
-    ///  1. Recibe los datos del formulario en un *RequestModel.
-    ///  2. Los envía como JSON a la API, a la URL Variables:ApiBaseUrl de appsettings.json
-    ///     (https://localhost:7122/api/) + "Home/Login", "Home/Register" o "Home/Forgot".
-    ///  3. Si la API responde 200 OK, redirige a la siguiente pantalla.
-    ///     Si responde cualquier otro código, lee el campo Mensaje del JSON de error, lo guarda
-    ///     en ViewBag.Mensaje y vuelve a mostrar la misma vista, que lo pinta en una alerta.
+    ///  1. Recibe los datos del formulario en un *RequestModel y revisa sus validaciones
+    ///     (ModelState.IsValid); si falta algo, vuelve a mostrar el formulario sin llamar a la API.
+    ///  2. Los envía como JSON a la API usando ApiClient ("Home/Login", "Home/Register"...).
+    ///  3. Si la API responde 200 OK, sigue a la siguiente pantalla. Si no, toma el Mensaje del
+    ///     JSON de error, lo guarda en ViewBag.Mensaje y la vista lo pinta en una alerta.
     ///
-    /// Sobre los campos vacíos: estos métodos NO revisan ModelState.IsValid, así que aunque el
-    /// formulario llegue vacío, igual se llama a la API. La API responde 400 sin campo "mensaje",
-    /// por lo que ViewBag.Mensaje queda vacío y no se muestra alerta. Los textos rojos debajo de
-    /// cada campo ("El correo electrónico es obligatorio") salen de las validaciones [Required]
-    /// de los modelos de la WEB, que ASP.NET Core evalúa al recibir el POST y que la vista muestra
-    /// con &lt;span asp-validation-for&gt;.
-    ///
-    /// Sobre .Result: PostAsJsonAsync y ReadFromJsonAsync son métodos asíncronos; .Result hace que
-    /// el método espere (bloqueado) hasta tener la respuesta antes de seguir con la línea siguiente.
-    ///
-    /// Dependencias que recibe en el constructor primario:
-    ///  - _httpClient: objeto para hacer peticiones HTTP a la API (registrado con AddHttpClient).
-    ///  - _configuration: lee appsettings.json para obtener Variables:ApiBaseUrl.
+    /// Las acciones son async: mientras se espera la respuesta de la API, el servidor puede
+    /// atender otras peticiones (antes se usaba .Result, que bloquea).
     /// </summary>
-    public class HomeController(HttpClient _httpClient, IConfiguration _configuration) : Controller
+    public class HomeController(ApiClient _api) : Controller
     {
         #region Inicio de Sesión
 
         /// <summary>
-        /// GET /Home/Login (y también "/", porque Program.cs define Home/Login como ruta por defecto).
-        /// Muestra el formulario de inicio de sesión vacío.
+        /// GET /Home/Login (y también "/"). Muestra el formulario de inicio de sesión.
+        /// Si ya hay sesión, va directo a Index. Si viene ?bloqueado=true es porque se superó el
+        /// límite de intentos (ver AddRateLimiter en Program.cs).
         /// </summary>
         [HttpGet]
-        public IActionResult Login()
+        public IActionResult Login(bool bloqueado = false)
         {
+            if (HttpContext.Session.GetInt32(ClavesSesion.IdUsuario) != null)
+                return RedirectToAction("Index", "Home");
+
+            if (bloqueado)
+                ViewBag.Mensaje = "Demasiados intentos de inicio de sesión. Espere un minuto e intente de nuevo.";
+
             return View();
         }
 
         /// <summary>
-        /// POST /Home/Login. Se ejecuta al presionar "Procesar" en el formulario de inicio de sesión.
-        /// Resultados posibles:
-        ///  - API responde 200 OK: guarda Autenticado = 1 en la sesión y redirige a /Home/Index.
-        ///  - API responde 404: vuelve a mostrar Login con la alerta
-        ///    "No se validó la información correctamente" (correo o contraseña incorrectos).
-        ///  - Campos vacíos: vuelve a mostrar Login con los mensajes rojos debajo de cada campo.
-        ///  - API apagada o inalcanzable: PostAsJsonAsync lanza una excepción y el usuario
-        ///    termina en la página de error (ErrorController.CapturarError).
+        /// POST /Home/Login. Resultados posibles:
+        ///  - API responde 200 OK: guarda el token y los datos del usuario en la sesión y va a Index.
+        ///  - API responde 404: "No se validó la información correctamente".
+        ///  - API responde 429: demasiados intentos.
+        ///  - API apagada: termina en la página de error con "No se pudo conectar con el servidor".
+        /// [EnableRateLimiting("login")]: máximo 5 intentos por minuto por navegador (IP).
         /// </summary>
-        /// <param name="model">Correo y contraseña escritos en el formulario.</param>
-        [ValidateAntiForgeryToken] // Rechaza el POST si no trae el token oculto que genera @Html.AntiForgeryToken() (protección CSRF)
+        [ValidateAntiForgeryToken] // Rechaza el POST si no trae el token oculto del formulario (protección CSRF)
+        [EnableRateLimiting("login")]
         [HttpPost]
-        public IActionResult Login(LoginRequestModel model)
+        public async Task<IActionResult> Login(LoginRequestModel model, CancellationToken cancellationToken)
         {
-            // "using var" libera el HttpClient al terminar el método
-            using var client = _httpClient;
-            // Ejemplo de URL final: https://localhost:7122/api/Home/Login
-            var url = _configuration.GetValue<string>("Variables:ApiBaseUrl") + "Home/Login";
+            if (!ModelState.IsValid)
+                return View(model);
 
-            // Convierte model a JSON, lo envía por POST y espera la respuesta de la API
-            var response = client.PostAsJsonAsync(url, model).Result;
+            var respuesta = await _api.PostAsync<UsuarioResponse>("Home/Login", model, cancellationToken);
 
-            if (response.StatusCode == HttpStatusCode.OK)
+            if (respuesta.Estado == HttpStatusCode.OK && respuesta.Datos != null)
             {
-                // Guarda en la sesión del navegador la variable "Autenticado" con valor 1.
-                // Views/Shared/Error.cshtml la lee: si vale 1 usa _Layout (con menú),
-                // si no existe usa _LayoutExterno (sin menú).
-                HttpContext.Session.SetInt32("Autenticado", 1);
+                // Se borra cualquier dato de una sesión anterior antes de guardar el usuario nuevo
+                HttpContext.Session.Clear();
+                HttpContext.Session.SetString(ClavesSesion.Token, respuesta.Datos.Token);
+                HttpContext.Session.SetInt32(ClavesSesion.IdUsuario, respuesta.Datos.IdUsuario);
+                HttpContext.Session.SetString(ClavesSesion.NombreCompleto, respuesta.Datos.NombreCompleto);
+                HttpContext.Session.SetInt32(ClavesSesion.Autenticado, 1);
                 return RedirectToAction("Index", "Home");
             }
 
-            // Respuesta distinta de 200: se convierte el JSON de error a UsuarioResponse y se
-            // toma su Mensaje. El "?." evita un error si la API no devolvió cuerpo (datos = null).
-            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
-            ViewBag.Mensaje = datos?.Mensaje;
+            ViewBag.Mensaje = MensajeDeError(respuesta);
+            return View(model);
+        }
 
-            // Vuelve a mostrar Login.cshtml; la vista pinta la alerta si ViewBag.Mensaje tiene texto
-            return View();
+        /// <summary>
+        /// POST /Home/Logout. Borra todos los datos de la sesión (token incluido) y vuelve al Login.
+        /// Es POST con antiforgery para que otro sitio no pueda cerrar la sesión con un simple link.
+        /// </summary>
+        [ValidateAntiForgeryToken]
+        [HttpPost]
+        public IActionResult Logout()
+        {
+            HttpContext.Session.Clear();
+            return RedirectToAction("Login", "Home");
         }
 
         #endregion
 
         #region Registro de usuarios
 
-        /// <summary>
-        /// GET /Home/Register. Muestra el formulario de registro vacío.
-        /// </summary>
+        /// <summary>GET /Home/Register. Muestra el formulario de registro vacío.</summary>
         [HttpGet]
         public IActionResult Register()
         {
@@ -101,40 +100,32 @@ namespace PAW_Jueves.Controllers
         }
 
         /// <summary>
-        /// POST /Home/Register. Se ejecuta al presionar "Procesar" en el formulario de registro.
-        /// Resultados posibles:
-        ///  - API responde 200 OK: el usuario se creó; redirige a /Home/Login para que inicie sesión.
-        ///  - API responde 422: la identificación o el correo ya existían; vuelve a mostrar Register
-        ///    con la alerta "No se registró la información correctamente".
-        ///  - Campos vacíos: vuelve a mostrar Register con los mensajes rojos debajo de cada campo.
+        /// POST /Home/Register. Resultados posibles:
+        ///  - API responde 200 OK: el usuario se creó; redirige a /Home/Login.
+        ///  - API responde 409: la identificación o el correo ya existían; se muestra el mensaje.
         /// </summary>
-        /// <param name="model">Identificación, nombre completo, correo y contraseña del formulario.</param>
         [ValidateAntiForgeryToken]
+        [EnableRateLimiting("login")]
         [HttpPost]
-        public IActionResult Register(RegisterRequestModel model)
+        public async Task<IActionResult> Register(RegisterRequestModel model, CancellationToken cancellationToken)
         {
-            using var client = _httpClient;
-            var url = _configuration.GetValue<string>("Variables:ApiBaseUrl") + "Home/Register";
+            if (!ModelState.IsValid)
+                return View(model);
 
-            var response = client.PostAsJsonAsync(url, model).Result;
+            var respuesta = await _api.PostAsync<UsuarioResponse>("Home/Register", model, cancellationToken);
 
-            if(response.StatusCode == HttpStatusCode.OK)
+            if (respuesta.Estado == HttpStatusCode.OK)
                 return RedirectToAction("Login", "Home");
 
-            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
-            ViewBag.Mensaje = datos?.Mensaje;
-
-            return View();
+            ViewBag.Mensaje = MensajeDeError(respuesta);
+            return View(model);
         }
 
         #endregion
 
         #region Olvido de Contraseña
 
-        /// <summary>
-        /// GET /Home/Forgot. Muestra el formulario donde el usuario escribe su correo para
-        /// recuperar el acceso. Se llega desde el enlace "Olvidó su contraseña?" del Login.
-        /// </summary>
+        /// <summary>GET /Home/Forgot. Formulario para recuperar el acceso con el correo.</summary>
         [HttpGet]
         public IActionResult Forgot()
         {
@@ -142,44 +133,30 @@ namespace PAW_Jueves.Controllers
         }
 
         /// <summary>
-        /// POST /Home/Forgot. Se ejecuta al presionar "Procesar" en el formulario de recuperación.
-        /// Resultados posibles:
-        ///  - API responde 200 OK: el correo existe y la API generó el link cifrado de recuperación;
-        ///    redirige a /Home/Login. (Hoy no se muestra ningún aviso de "revise su correo" y el
-        ///    correo todavía no se envía; eso está pendiente en la API.)
-        ///  - API responde 404: el correo no existe o el usuario está inactivo; vuelve a mostrar
-        ///    Forgot con la alerta "No se validó la información correctamente".
-        ///  - Campo vacío: vuelve a mostrar Forgot con "El correo electrónico es obligatorio".
+        /// POST /Home/Forgot. Si la API responde 200 OK (el correo existe y se generó el link de
+        /// recuperación) vuelve al Login; si no, muestra el mensaje de la API.
         /// </summary>
-        /// <param name="model">Correo escrito en el formulario.</param>
         [ValidateAntiForgeryToken]
         [HttpPost]
-        public IActionResult Forgot(ForgotRequestModel model)
+        public async Task<IActionResult> Forgot(ForgotRequestModel model, CancellationToken cancellationToken)
         {
-            using var client = _httpClient;
-            var url = _configuration.GetValue<string>("Variables:ApiBaseUrl") + "Home/Forgot";
+            if (!ModelState.IsValid)
+                return View(model);
 
-            var response = client.PostAsJsonAsync(url, model).Result;
+            var respuesta = await _api.PostAsync<UsuarioResponse>("Home/Forgot", model, cancellationToken);
 
-            if (response.StatusCode == HttpStatusCode.OK)
+            if (respuesta.Estado == HttpStatusCode.OK)
                 return RedirectToAction("Login", "Home");
 
-            var datos = response.Content.ReadFromJsonAsync<UsuarioResponse>().Result;
-            ViewBag.Mensaje = datos?.Mensaje;
-
-            return View();
+            ViewBag.Mensaje = MensajeDeError(respuesta);
+            return View(model);
         }
 
         #endregion
 
         /// <summary>
-        /// GET /Home/ChangePassword/{id}. Es la página a la que apuntará el link de recuperación
-        /// que genera la API, por ejemplo https://localhost:7280/Home/ChangePassword/Xy7_aB-...
-        /// La parte final de la URL llega en el parámetro id gracias al patrón de ruta
-        /// "{controller}/{action}/{id?}" definido en Program.cs.
-        ///
-        /// Estado actual: el id NO se usa todavía (no se descifra ni se valida) y la vista solo
-        /// muestra el texto "EN CONSTRUCCION". El cambio de contraseña se completará más adelante.
+        /// GET /Home/ChangePassword/{id}. Página a la que apuntará el link de recuperación que genera
+        /// la API. Estado actual: el id todavía no se usa y la vista dice "EN CONSTRUCCION".
         /// </summary>
         /// <param name="id">Token cifrado que viene al final del link de recuperación.</param>
         public IActionResult ChangePassword(string id)
@@ -188,14 +165,27 @@ namespace PAW_Jueves.Controllers
         }
 
         /// <summary>
-        /// GET /Home/Index. Pantalla principal que se muestra después de iniciar sesión.
-        /// Usa el layout interno _Layout.cshtml (con menú lateral y barra superior).
-        /// Nota: hoy no verifica la variable de sesión, así que también se puede abrir
-        /// escribiendo la URL directamente sin haber iniciado sesión.
+        /// GET /Home/Index. Pantalla principal después de iniciar sesión. [Autenticado] redirige
+        /// al Login si no hay sesión (antes se podía abrir escribiendo la URL directamente).
         /// </summary>
+        [Autenticado]
         public IActionResult Index()
         {
             return View();
+        }
+
+        /// <summary>
+        /// Texto a mostrar cuando la API no respondió 200: el Mensaje que mandó la API o, si no
+        /// mandó ninguno, uno genérico según el código HTTP.
+        /// </summary>
+        private static string MensajeDeError(RespuestaApi<UsuarioResponse> respuesta)
+        {
+            if (!string.IsNullOrWhiteSpace(respuesta.Datos?.Mensaje))
+                return respuesta.Datos.Mensaje;
+
+            return respuesta.Estado == HttpStatusCode.TooManyRequests
+                ? "Demasiados intentos. Espere un minuto e intente de nuevo."
+                : "No se pudo procesar la solicitud. Intente de nuevo.";
         }
     }
 }

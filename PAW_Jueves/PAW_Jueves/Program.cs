@@ -3,7 +3,9 @@
 //   1. Registro de servicios: qué objetos puede crear ASP.NET Core y entregar a los controladores.
 //   2. Pipeline: la lista ordenada de pasos (middlewares) por los que pasa CADA petición HTTP.
 // Usa "top-level statements": el compilador genera la clase Program y el método Main.
+using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.DataProtection;
+using PAW_Jueves.Services;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,11 +13,51 @@ var builder = WebApplication.CreateBuilder(args);
 
 // Activa el patrón MVC: controladores (HomeController, ErrorController) + vistas Razor (.cshtml)
 builder.Services.AddControllersWithViews();
-// Permite pedir un HttpClient en el constructor de los controladores; se usa para llamar a la API
-builder.Services.AddHttpClient();
-// Permite guardar datos por usuario entre peticiones (HttpContext.Session), por ejemplo "Autenticado".
+// ApiClient: cliente para llamar a la API. Su dirección base es Variables:ApiBaseUrl
+// (por ejemplo https://localhost:7122/api/), así los controladores solo escriben "Home/Login".
+// Necesita IHttpContextAccessor para leer el token de la sesión y mandarlo a la API.
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddHttpClient<ApiClient>(cliente =>
+{
+    cliente.BaseAddress = new Uri(builder.Configuration.GetValue<string>("Variables:ApiBaseUrl")
+        ?? throw new InvalidOperationException("Falta Variables:ApiBaseUrl en appsettings.json"));
+    cliente.Timeout = TimeSpan.FromSeconds(30);
+});
+
+// Permite guardar datos por usuario entre peticiones (HttpContext.Session): token, IdUsuario, nombre.
 // Los datos se guardan en la memoria del servidor y el navegador solo guarda una cookie con el id de sesión.
-builder.Services.AddSession();
+builder.Services.AddSession(opciones =>
+{
+    // Sin actividad durante 30 minutos, la sesión se borra y hay que volver a iniciar sesión
+    opciones.IdleTimeout = TimeSpan.FromMinutes(30);
+    opciones.Cookie.Name = ".PAW_Jueves.Sesion";
+    // JavaScript no puede leer la cookie (protege contra robo de sesión por XSS)
+    opciones.Cookie.HttpOnly = true;
+    opciones.Cookie.IsEssential = true;
+    // El navegador no manda la cookie en peticiones que vienen de otros sitios (protege contra CSRF)
+    opciones.Cookie.SameSite = SameSiteMode.Strict;
+    // Por HTTPS la cookie se marca Secure. Se deja SameAsRequest porque docker-compose usa http.
+    opciones.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
+});
+
+// Límite de intentos: máximo 5 POST por minuto por IP a Login y Register ([EnableRateLimiting("login")]).
+// Si se supera, vuelve al Login con el aviso "Demasiados intentos".
+builder.Services.AddRateLimiter(opciones =>
+{
+    opciones.AddPolicy("login", http => RateLimitPartition.GetFixedWindowLimiter(
+        http.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 5,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+    opciones.OnRejected = (contexto, _) =>
+    {
+        contexto.HttpContext.Response.Redirect("/Home/Login?bloqueado=true");
+        return ValueTask.CompletedTask;
+    };
+});
 
 // Data Protection cifra el token antiforgery de los formularios y la cookie de sesión.
 // Por defecto sus llaves viven solo dentro del contenedor: al recrearlo se pierden y los
@@ -52,7 +94,11 @@ app.UseHttpsRedirection();
 // Decide qué controlador y acción atienden la URL (usa la ruta definida más abajo)
 app.UseRouting();
 
-// Revisa los atributos [Authorize]. Hoy ninguna acción los usa, así que no bloquea nada.
+// Aplica el límite de intentos ([EnableRateLimiting("login")]). Va después de UseRouting
+// porque necesita saber qué acción se va a ejecutar.
+app.UseRateLimiter();
+
+// Revisa los atributos [Authorize]. La WEB usa su propio filtro [Autenticado] (ver Filters/).
 app.UseAuthorization();
 
 // Sirve los archivos estáticos de wwwroot (css, js, imágenes, lib)
