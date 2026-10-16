@@ -104,7 +104,12 @@
           <ul class="dropdown-menu dropdown-menu-end dropdown-menu-profile" aria-labelledby="profile-dropdown">
             <li><a class="dropdown-item" asp-controller="Cuenta" asp-action="MiCuenta"><i class="bi bi-person"></i> My Account</a></li>
             <li><a class="dropdown-item" asp-controller="Cuenta" asp-action="Settings"><i class="bi bi-gear"></i> Settings</a></li>
-            <li><a class="dropdown-item" href="#"><i class="bi bi-lock"></i> Lock Screen</a></li>
+            <li>
+              <!-- Bloquea la pantalla sin cerrar sesión. bloqueo.js también envía este formulario tras 10 minutos sin actividad -->
+              <form asp-controller="Bloqueo" asp-action="Bloquear" method="post" class="m-0" id="form-bloqueo" data-minutos-inactividad="10">
+                <button type="submit" class="dropdown-item"><i class="bi bi-lock"></i> Lock Screen</button>
+              </form>
+            </li>
             <li>
               <hr class="dropdown-divider">
             </li>
@@ -140,6 +145,7 @@
   <script src="~/lib/flatpickr/flatpickr.min.js"></script>
   <script src="~/js/theme.js" asp-append-version="true"></script>
   <script src="~/js/dashboard.js" asp-append-version="true"></script>
+  <script src="~/js/bloqueo.js" asp-append-version="true"></script>
 </body>
 
 </html>

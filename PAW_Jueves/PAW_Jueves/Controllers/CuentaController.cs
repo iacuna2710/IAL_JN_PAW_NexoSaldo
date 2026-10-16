@@ -39,6 +39,9 @@ namespace PAW_Jueves.Controllers
                 return View(new PerfilModel());
             }
 
+            var actividad = await _api.GetAsync<List<ActividadModel>>("Usuario/Actividad?top=10", cancellationToken);
+            ViewBag.Actividad = actividad.Datos ?? [];
+
             return View(respuesta.Datos);
         }
 

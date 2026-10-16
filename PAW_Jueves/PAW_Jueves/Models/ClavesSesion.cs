@@ -18,6 +18,12 @@ namespace PAW_Jueves.Models
         /// <summary>Ruta de la foto de perfil (/uploads/perfiles/...) o vacío si usa la imagen por defecto.</summary>
         public const string FotoPerfil = "FotoPerfil";
 
+        /// <summary>Vale 1 mientras la pantalla está bloqueada (Lock Screen). La sesión sigue abierta.</summary>
+        public const string Bloqueado = "Bloqueado";
+
+        /// <summary>Intentos fallidos de desbloqueo. Al llegar a 5 se cierra la sesión.</summary>
+        public const string IntentosDesbloqueo = "IntentosDesbloqueo";
+
         /// <summary>Vale 1 con sesión iniciada. Lo usa Error.cshtml para elegir el layout.</summary>
         public const string Autenticado = "Autenticado";
     }

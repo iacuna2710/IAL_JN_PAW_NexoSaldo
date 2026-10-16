@@ -39,6 +39,8 @@ namespace PAW_Jueves.Controllers
 
             if (bloqueado)
                 ViewBag.Mensaje = "Demasiados intentos de inicio de sesión. Espere un minuto e intente de nuevo.";
+            else if (TempData["Mensaje"] is string mensaje)
+                ViewBag.Mensaje = mensaje; // Por ejemplo, el Lock Screen cerró la sesión por intentos fallidos
 
             return View();
         }
@@ -170,9 +172,17 @@ namespace PAW_Jueves.Controllers
         /// al Login si no hay sesión (antes se podía abrir escribiendo la URL directamente).
         /// </summary>
         [Autenticado]
-        public IActionResult Index()
+        public async Task<IActionResult> Index(CancellationToken cancellationToken)
         {
-            return View();
+            var actividad = await _api.GetAsync<List<ActividadModel>>("Usuario/Actividad?top=5", cancellationToken);
+
+            if (actividad.Estado == HttpStatusCode.Unauthorized)
+            {
+                HttpContext.Session.Clear();
+                return RedirectToAction("Login", "Home");
+            }
+
+            return View(actividad.Datos ?? []);
         }
 
         /// <summary>

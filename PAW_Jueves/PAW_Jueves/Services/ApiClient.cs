@@ -38,6 +38,10 @@ namespace PAW_Jueves.Services
             return EnviarAsync<T>(peticion, cancellationToken);
         }
 
+        /// <summary>POST sin cuerpo. Ejemplo: PostAsync&lt;UsuarioResponse&gt;("Usuario/Bloquear").</summary>
+        public Task<RespuestaApi<T>> PostAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
+            EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Post, ruta), cancellationToken);
+
         /// <summary>GET. Ejemplo: GetAsync&lt;PerfilResponse&gt;("Usuario/Perfil").</summary>
         public Task<RespuestaApi<T>> GetAsync<T>(string ruta, CancellationToken cancellationToken = default) =>
             EnviarAsync<T>(new HttpRequestMessage(HttpMethod.Get, ruta), cancellationToken);
@@ -49,6 +53,11 @@ namespace PAW_Jueves.Services
                 var token = _accesor.HttpContext?.Session.GetString(ClavesSesion.Token);
                 if (!string.IsNullOrEmpty(token))
                     peticion.Headers.Authorization = new AuthenticationHeaderValue("Bearer", token);
+
+                // IP del navegador del usuario, para la bitácora de la API (la API solo ve la IP de la WEB)
+                var ip = _accesor.HttpContext?.Connection.RemoteIpAddress?.ToString();
+                if (!string.IsNullOrEmpty(ip))
+                    peticion.Headers.TryAddWithoutValidation("X-Cliente-Ip", ip);
 
                 // Si la API está apagada, SendAsync lanza HttpRequestException y el usuario termina
                 // en ErrorController, que muestra "No se pudo conectar con el servidor (API)".

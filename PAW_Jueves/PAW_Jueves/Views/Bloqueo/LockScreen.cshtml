@@ -1,0 +1,50 @@
+﻿@{
+    Layout = "_LayoutExterno";
+    var foto = Context.Session.GetString(ClavesSesion.FotoPerfil);
+    var nombre = Context.Session.GetString(ClavesSesion.NombreCompleto);
+}
+
+<div class="login-wrapper">
+    <div class="login-bg-shape login-bg-shape-1"></div>
+    <div class="login-bg-shape login-bg-shape-2"></div>
+
+    <div class="login-card text-center">
+
+        <img src="@(string.IsNullOrEmpty(foto) ? Url.Content("~/images/avatar.png") : foto)" alt="Foto de perfil"
+             class="rounded-circle mx-auto mb-3" style="width: 96px; height: 96px; object-fit: cover;">
+        <h1 class="login-title h4 mb-1">@nombre</h1>
+        <p class="login-subtitle mb-4"><i class="bi bi-lock-fill"></i> Pantalla bloqueada. Escriba su contraseña para continuar.</p>
+
+        <form asp-controller="Bloqueo" asp-action="Desbloquear" method="post" class="text-start" id="loginForm">
+
+            @if (!string.IsNullOrEmpty(ViewBag.Mensaje))
+            {
+                <div class="alert alert-warning text-center" role="alert">@ViewBag.Mensaje</div>
+            }
+
+            <div class="login-form-group">
+                <label for="Contrasenna" class="login-form-label">Contraseña</label>
+                <div class="login-input-group">
+                    <i class="bi bi-shield-lock input-icon"></i>
+                    <input type="password" id="Contrasenna" name="contrasenna" class="login-input login-input-password"
+                           autocomplete="current-password" autofocus required>
+                    <button type="button" class="password-toggle-btn" id="toggle-password" aria-label="Mostrar contraseña">
+                        <i class="bi bi-eye"></i>
+                    </button>
+                </div>
+            </div>
+
+            <button type="submit" class="btn-login">
+                <span><i class="bi bi-unlock"></i> Desbloquear</span>
+            </button>
+        </form>
+
+        <div class="login-divider"></div>
+
+        <form asp-controller="Home" asp-action="Logout" method="post">
+            <p class="login-footer-text mb-0">
+                ¿No es usted? <button type="submit" class="btn btn-link p-0 align-baseline">Cerrar sesión</button>
+            </p>
+        </form>
+    </div>
+</div>

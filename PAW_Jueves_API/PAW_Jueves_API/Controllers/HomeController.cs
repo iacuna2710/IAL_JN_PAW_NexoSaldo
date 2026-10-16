@@ -34,11 +34,12 @@ namespace PAW_Jueves_API.Controllers
     ///    id del usuario para el link de recuperación. Se registró en Program.cs.
     ///  - _hash: IHashService, hashea y verifica contraseñas con BCrypt.
     ///  - _token: ITokenService, genera el token JWT que se entrega al iniciar sesión.
+    ///  - _bitacora: IBitacoraService, anota los inicios de sesión (correctos y fallidos).
     /// </summary>
     [ApiController]
     [Route("api/[controller]")]
     public class HomeController(IConfiguration _configuration, IPasswordService _password,
-        IHashService _hash, ITokenService _token) : ControllerBase
+        IHashService _hash, ITokenService _token, IBitacoraService _bitacora) : ControllerBase
     {
         /// <summary>
         /// POST /api/Home/Login. Verifica el correo y la contraseña de un usuario ACTIVO.
@@ -75,7 +76,13 @@ namespace PAW_Jueves_API.Controllers
                 : _hash.Verificar(model.Contrasenna, usuario.Contrasenna);
 
             if (usuario == null || resultado == ResultadoVerificacion.Incorrecta)
+            {
+                // Solo se anota si el correo existe: así el dueño de la cuenta ve que alguien intentó entrar
+                if (usuario != null)
+                    await _bitacora.RegistrarAsync(usuario.IdUsuario, AccionesBitacora.InicioSesionFallido, "Contraseña incorrecta", cancellationToken);
+
                 return NotFound(new UsuarioResponse { Mensaje = "No se validó la información correctamente" });
+            }
 
             // Migración transparente: el usuario escribió bien su contraseña vieja (texto plano),
             // así que se aprovecha para guardarla ya hasheada.
@@ -87,6 +94,8 @@ namespace PAW_Jueves_API.Controllers
                     commandType: CommandType.StoredProcedure,
                     cancellationToken: cancellationToken));
             }
+
+            await _bitacora.RegistrarAsync(usuario.IdUsuario, AccionesBitacora.InicioSesion, cancellationToken: cancellationToken);
 
             return Ok(new LoginResponse
             {

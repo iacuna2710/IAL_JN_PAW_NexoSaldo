@@ -2,6 +2,7 @@ using System.Data;
 using Dapper;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.Data.SqlClient;
 using PAW_Jueves_API.Models;
 using PAW_Jueves_API.Services;
@@ -18,7 +19,7 @@ namespace PAW_Jueves_API.Controllers
     [ApiController]
     [Authorize]
     [Route("api/[controller]")]
-    public class UsuarioController(IConfiguration _configuration, IHashService _hash) : ControllerBase
+    public class UsuarioController(IConfiguration _configuration, IHashService _hash, IBitacoraService _bitacora) : ControllerBase
     {
         /// <summary>GET /api/Usuario/Perfil. Datos básicos del usuario autenticado.</summary>
         /// <returns>200 con el perfil; 404 si el usuario ya no existe o está inactivo; 401 sin token.</returns>
@@ -49,6 +50,9 @@ namespace PAW_Jueves_API.Controllers
             var filas = await EjecutarAsync("sp_ActualizarPerfil",
                 new { IdUsuario = User.ObtenerIdUsuario(), model.NombreCompleto, model.Telefono }, cancellationToken);
 
+            if (filas > 0)
+                await _bitacora.RegistrarAsync(User.ObtenerIdUsuario(), AccionesBitacora.CambioPerfil, cancellationToken: cancellationToken);
+
             return filas > 0
                 ? Ok(new ResponseApi { Mensaje = "Se actualizaron sus datos" })
                 : NotFound(new ResponseApi { Mensaje = "No se encontró el usuario" });
@@ -60,6 +64,9 @@ namespace PAW_Jueves_API.Controllers
         {
             var filas = await EjecutarAsync("sp_ActualizarPreferencias",
                 new { IdUsuario = User.ObtenerIdUsuario(), model.Moneda }, cancellationToken);
+
+            if (filas > 0)
+                await _bitacora.RegistrarAsync(User.ObtenerIdUsuario(), AccionesBitacora.CambioPreferencias, $"Moneda: {model.Moneda}", cancellationToken);
 
             return filas > 0
                 ? Ok(new ResponseApi { Mensaje = "Se guardaron sus preferencias" })
@@ -85,6 +92,8 @@ namespace PAW_Jueves_API.Controllers
 
             if (fila == null)
                 return NotFound(new FotoResponse { Mensaje = "No se encontró el usuario" });
+
+            await _bitacora.RegistrarAsync(User.ObtenerIdUsuario(), AccionesBitacora.CambioFoto, cancellationToken: cancellationToken);
 
             fila.Mensaje = "Se actualizó su foto de perfil";
             return Ok(fila);
@@ -114,7 +123,10 @@ namespace PAW_Jueves_API.Controllers
                 return NotFound(new ResponseApi { Mensaje = "No se encontró el usuario" });
 
             if (_hash.Verificar(model.ContrasennaActual, guardada) == ResultadoVerificacion.Incorrecta)
+            {
+                await _bitacora.RegistrarAsync(idUsuario, AccionesBitacora.CambioContrasennaFallido, "Contraseña actual incorrecta", cancellationToken);
                 return UnprocessableEntity(new ResponseApi { Mensaje = "La contraseña actual no es correcta" });
+            }
 
             if (model.ContrasennaNueva == model.ContrasennaActual)
                 return UnprocessableEntity(new ResponseApi { Mensaje = "La contraseña nueva debe ser distinta de la actual" });
@@ -125,7 +137,68 @@ namespace PAW_Jueves_API.Controllers
                 commandType: CommandType.StoredProcedure,
                 cancellationToken: cancellationToken));
 
+            await _bitacora.RegistrarAsync(idUsuario, AccionesBitacora.CambioContrasenna, cancellationToken: cancellationToken);
+
             return Ok(new ResponseApi { Mensaje = "Se cambió su contraseña" });
+        }
+
+        /// <summary>GET /api/Usuario/Actividad?top=10. Últimas acciones del usuario (más recientes primero).</summary>
+        /// <param name="top">Cuántas filas devolver, entre 1 y 50.</param>
+        [HttpGet("Actividad")]
+        public async Task<IActionResult> Actividad([FromQuery] int top = 10, CancellationToken cancellationToken = default)
+        {
+            await using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
+
+            var filas = await context.QueryAsync<ActividadResponse>(new CommandDefinition(
+                "sp_ConsultarBitacora",
+                new { IdUsuario = User.ObtenerIdUsuario(), Top = Math.Clamp(top, 1, 50) },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken));
+
+            // SQL Server devuelve la fecha sin zona horaria; se marca como UTC para que el JSON lleve la "Z"
+            foreach (var fila in filas)
+                fila.Fecha = DateTime.SpecifyKind(fila.Fecha, DateTimeKind.Utc);
+
+            return Ok(filas);
+        }
+
+        /// <summary>
+        /// POST /api/Usuario/Bloquear. La WEB avisa que el usuario bloqueó la pantalla; aquí solo se
+        /// anota en la bitácora (el bloqueo en sí vive en la sesión de la WEB).
+        /// </summary>
+        [HttpPost("Bloquear")]
+        public async Task<IActionResult> Bloquear(CancellationToken cancellationToken)
+        {
+            await _bitacora.RegistrarAsync(User.ObtenerIdUsuario(), AccionesBitacora.Bloqueo, cancellationToken: cancellationToken);
+            return NoContent();
+        }
+
+        /// <summary>
+        /// POST /api/Usuario/VerificarContrasenna. Se usa para desbloquear la pantalla: confirma que
+        /// quien está frente al computador conoce la contraseña del usuario de la sesión.
+        /// </summary>
+        /// <returns>200 si la contraseña es correcta; 422 si no.</returns>
+        [HttpPost("VerificarContrasenna")]
+        [EnableRateLimiting("credenciales")]
+        public async Task<IActionResult> VerificarContrasenna(VerificarContrasennaRequest model, CancellationToken cancellationToken)
+        {
+            var idUsuario = User.ObtenerIdUsuario();
+            await using var context = new SqlConnection(_configuration.GetValue<string>("Variables:ConnectionString"));
+
+            var guardada = await context.QueryFirstOrDefaultAsync<string>(new CommandDefinition(
+                "sp_ConsultarContrasenna",
+                new { IdUsuario = idUsuario },
+                commandType: CommandType.StoredProcedure,
+                cancellationToken: cancellationToken));
+
+            if (guardada == null || _hash.Verificar(model.Contrasenna, guardada) == ResultadoVerificacion.Incorrecta)
+            {
+                await _bitacora.RegistrarAsync(idUsuario, AccionesBitacora.DesbloqueoFallido, cancellationToken: cancellationToken);
+                return UnprocessableEntity(new ResponseApi { Mensaje = "La contraseña no es correcta" });
+            }
+
+            await _bitacora.RegistrarAsync(idUsuario, AccionesBitacora.Desbloqueo, cancellationToken: cancellationToken);
+            return Ok(new ResponseApi { Mensaje = "Pantalla desbloqueada" });
         }
 
         /// <summary>Ejecuta un procedimiento que no devuelve filas y retorna cuántas filas cambió.</summary>

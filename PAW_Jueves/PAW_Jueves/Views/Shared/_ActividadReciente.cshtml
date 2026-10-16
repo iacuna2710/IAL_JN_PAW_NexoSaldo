@@ -1,0 +1,34 @@
+﻿@using PAW_Jueves.Services
+@model IEnumerable<ActividadModel>
+@* Lista de las últimas acciones del usuario (bitácora). Uso: <partial name="_ActividadReciente" model="lista" /> *@
+
+@if (!Model.Any())
+{
+    <p class="text-secondary small mb-0">Todavía no hay actividad registrada.</p>
+}
+else
+{
+    <ul class="list-unstyled mb-0">
+        @foreach (var item in Model)
+        {
+            var alerta = AccionesBitacora.EsAlerta(item.Accion);
+            <li class="d-flex align-items-start gap-3 py-2 border-bottom">
+                <i class="bi @AccionesBitacora.Icono(item.Accion) fs-5 @(alerta ? "text-danger" : "text-secondary")"></i>
+                <div class="flex-grow-1">
+                    <div class="@(alerta ? "text-danger fw-semibold" : "")">@AccionesBitacora.Texto(item.Accion)</div>
+                    @if (!string.IsNullOrEmpty(item.Detalle))
+                    {
+                        <div class="text-secondary small">@item.Detalle</div>
+                    }
+                </div>
+                <div class="text-end text-secondary small text-nowrap">
+                    <div>@FormatoFecha.Mostrar(item.Fecha)</div>
+                    @if (!string.IsNullOrEmpty(item.Ip))
+                    {
+                        <div class="fs-xs">IP @item.Ip</div>
+                    }
+                </div>
+            </li>
+        }
+    </ul>
+}

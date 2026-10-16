@@ -33,6 +33,9 @@ builder.Services.AddOpenApi();
 builder.Services.AddScoped<IPasswordService, PasswordService>();
 builder.Services.AddSingleton<IHashService, HashService>();
 builder.Services.AddSingleton<ITokenService, TokenService>();
+// BitacoraService lee la IP del usuario de la petición actual: necesita IHttpContextAccessor
+builder.Services.AddHttpContextAccessor();
+builder.Services.AddScoped<IBitacoraService, BitacoraService>();
 
 // ---------- Token JWT (quién es el usuario en cada petición) ----------
 // Options pattern: la sección "Jwt" de appsettings se convierte en un objeto JwtOptions.
