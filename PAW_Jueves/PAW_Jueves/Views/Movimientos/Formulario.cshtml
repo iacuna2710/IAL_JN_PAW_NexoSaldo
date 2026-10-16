@@ -1,0 +1,92 @@
+﻿@using System.Globalization
+@using PAW_Jueves.Services
+@model MovimientoFormularioViewModel
+@{
+    var f = Model.Formulario;
+    var hoy = FormatoMoneda.HoyCostaRica().ToString("yyyy-MM-dd");
+    var accion = Model.EsEdicion ? "Editar" : "Crear";
+}
+
+<div class="page-header">
+  <div>
+    <h1 class="page-title">@(Model.EsEdicion ? "Editar movimiento" : f.Tipo == "I" ? "Nuevo ingreso" : "Nuevo gasto")</h1>
+    <p class="page-subtitle">Los montos se muestran en @FormatoMoneda.Simbolo(Model.Moneda) (puede cambiarlo en Settings)</p>
+  </div>
+</div>
+
+@if (!string.IsNullOrEmpty(ViewBag.Mensaje))
+{
+  <div class="alert alert-danger" role="alert"><i class="bi bi-exclamation-triangle"></i> @ViewBag.Mensaje</div>
+}
+
+<div class="row">
+  <div class="col-12 col-lg-7">
+    <div class="card p-4 border-light shadow-sm">
+      <form asp-action="@accion" asp-route-id="@(Model.EsEdicion ? f.IdMovimiento : null)" method="post">
+        <div class="mb-3">
+          <span class="form-label-custom d-block">Tipo</span>
+          <div class="btn-group" role="group">
+            <input type="radio" class="btn-check" name="Formulario.Tipo" id="tipo-g" value="G" @(f.Tipo == "G" ? "checked" : "")>
+            <label class="btn btn-outline-danger" for="tipo-g"><i class="bi bi-dash-circle"></i> Gasto</label>
+            <input type="radio" class="btn-check" name="Formulario.Tipo" id="tipo-i" value="I" @(f.Tipo == "I" ? "checked" : "")>
+            <label class="btn btn-outline-success" for="tipo-i"><i class="bi bi-plus-circle"></i> Ingreso</label>
+          </div>
+        </div>
+
+        <div class="mb-3">
+          <label for="IdCategoria" class="form-label-custom">Categoría</label>
+          <select id="IdCategoria" name="Formulario.IdCategoria" class="form-select form-select-custom" required>
+            <option value="">Elija una categoría</option>
+            @foreach (var c in Model.Categorias)
+            {
+              <option value="@c.IdCategoria" data-tipo="@c.Tipo" selected="@(c.IdCategoria == f.IdCategoria)">@c.Nombre</option>
+            }
+          </select>
+          <p class="text-secondary fs-xs mt-1 mb-0">¿Falta una? <a asp-controller="Categorias" asp-action="Index">Administrar categorías</a></p>
+        </div>
+
+        <div class="row g-3 mb-3">
+          <div class="col-12 col-md-6">
+            <label for="Monto" class="form-label-custom">Monto (@FormatoMoneda.Simbolo(Model.Moneda))</label>
+            <input id="Monto" name="Formulario.Monto" type="number" min="0.01" max="999999999" step="0.01" required
+                   class="form-control form-control-custom" value="@(f.Monto > 0 ? f.Monto.ToString(CultureInfo.InvariantCulture) : "")">
+          </div>
+          <div class="col-12 col-md-6">
+            <label for="Fecha" class="form-label-custom">Fecha</label>
+            <input id="Fecha" name="Formulario.Fecha" type="date" max="@hoy" required
+                   class="form-control form-control-custom" value="@f.Fecha.ToString("yyyy-MM-dd")">
+          </div>
+        </div>
+
+        <div class="mb-4">
+          <label for="Descripcion" class="form-label-custom">Descripción</label>
+          <input id="Descripcion" name="Formulario.Descripcion" maxlength="250" class="form-control form-control-custom"
+                 value="@f.Descripcion" placeholder="Opcional, por ejemplo: almuerzo con el equipo">
+        </div>
+
+        <div class="d-flex gap-2">
+          <button type="submit" class="btn-custom btn-custom-primary"><i class="bi bi-save"></i> Guardar</button>
+          <a asp-action="Index" asp-route-periodo="@f.Fecha.ToString("yyyy-MM")" class="btn-custom btn-custom-light">Cancelar</a>
+        </div>
+      </form>
+    </div>
+  </div>
+</div>
+
+<script>
+  // Muestra solo las categorías del tipo elegido (gasto o ingreso)
+  (function () {
+    const select = document.getElementById('IdCategoria');
+    const radios = document.querySelectorAll('input[name="Formulario.Tipo"]');
+    function filtrar() {
+      const tipo = document.querySelector('input[name="Formulario.Tipo"]:checked').value;
+      Array.from(select.options).forEach(function (op) {
+        if (!op.dataset.tipo) return;
+        op.hidden = op.dataset.tipo !== tipo;
+        if (op.hidden && op.selected) select.value = '';
+      });
+    }
+    radios.forEach(function (r) { r.addEventListener('change', filtrar); });
+    filtrar();
+  })();
+</script>

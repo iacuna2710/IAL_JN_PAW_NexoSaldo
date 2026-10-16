@@ -1,0 +1,75 @@
+﻿@model AsistenteViewModel
+
+<div class="page-header d-flex flex-wrap justify-content-between align-items-center gap-3">
+  <div>
+    <h1 class="page-title"><i class="bi bi-stars"></i> Asistente IA</h1>
+    <p class="page-subtitle">Pregunte sobre sus gastos, presupuestos y cómo ahorrar</p>
+  </div>
+  @if (Model.Mensajes.Any())
+  {
+    <form asp-action="Limpiar" method="post" onsubmit="return confirm('¿Borrar toda la conversación?');">
+      <button type="submit" class="btn-custom btn-custom-light"><i class="bi bi-trash"></i> Borrar conversación</button>
+    </form>
+  }
+</div>
+
+@if (!Model.Habilitado)
+{
+  <div class="card p-4 border-light shadow-sm">
+    <h2 class="card-title h5"><i class="bi bi-plug"></i> El asistente no está configurado</h2>
+    <p class="text-secondary mb-2">Falta la clave de la API de Gemini en la API del proyecto. Para activarlo:</p>
+    <ol class="text-secondary mb-0">
+      <li>Cree una clave gratis en <a href="https://aistudio.google.com/apikey" target="_blank" rel="noopener">Google AI Studio</a>.</li>
+      <li>Guárdela con <code>dotnet user-secrets set "Gemini:ApiKey" "SU_CLAVE" --project PAW_Jueves_API/PAW_Jueves_API</code>
+          (o en el archivo <code>.env</code> si usa docker-compose). Vea el README.</li>
+      <li>Reinicie la API.</li>
+    </ol>
+  </div>
+}
+else
+{
+  @Html.AntiForgeryToken()
+  <div class="card border-light shadow-sm d-flex flex-column" style="height: calc(100vh - 260px); min-height: 420px;">
+    <div id="chat-mensajes" class="flex-grow-1 overflow-auto p-4 d-flex flex-column gap-3" aria-live="polite">
+      @if (!Model.Mensajes.Any())
+      {
+        <div id="chat-vacio" class="text-center text-secondary my-auto">
+          <i class="bi bi-chat-dots fs-1 d-block mb-2"></i>
+          Hola. Conozco los totales de sus ingresos y gastos de este mes. Pruebe con una de estas preguntas:
+        </div>
+      }
+      @foreach (var m in Model.Mensajes)
+      {
+        @* Razor codifica el texto (@m.Texto): una respuesta con HTML se muestra como texto, no se ejecuta *@
+        <div class="chat-burbuja @(m.Rol == "user" ? "chat-usuario" : "chat-ia")">@m.Texto</div>
+      }
+    </div>
+
+    <div class="border-top p-3">
+      <div class="d-flex flex-wrap gap-2 mb-2" id="chat-sugerencias">
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-sugerencia>¿En qué gasté más este mes?</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-sugerencia>¿Cómo voy con mis presupuestos?</button>
+        <button type="button" class="btn btn-sm btn-outline-secondary" data-sugerencia>Dame un consejo para ahorrar</button>
+      </div>
+      <form id="chat-formulario" class="d-flex gap-2" data-url="@Url.Action("Enviar", "Asistente")">
+        <label for="chat-texto" class="visually-hidden">Pregunta</label>
+        <textarea id="chat-texto" class="form-control form-control-custom" rows="1" maxlength="1000"
+                  placeholder="Escriba su pregunta... (Enter para enviar)" required></textarea>
+        <button type="submit" id="chat-enviar" class="btn-custom btn-custom-primary"><i class="bi bi-send"></i></button>
+      </form>
+      <p class="text-secondary fs-xs mt-2 mb-0">
+        <i class="bi bi-shield-check"></i> A Gemini solo se envían los totales del mes por categoría, nunca su nombre, correo ni
+        las descripciones de sus movimientos. En el plan gratuito, Google puede usar las consultas para mejorar sus productos.
+        Las respuestas son orientativas y no reemplazan la asesoría de un profesional. Modelo: @Model.Modelo.
+      </p>
+    </div>
+  </div>
+}
+
+<style>
+  .chat-burbuja { max-width: 80%; padding: .75rem 1rem; border-radius: 1rem; white-space: pre-wrap; overflow-wrap: anywhere; }
+  .chat-usuario { align-self: flex-end; background: var(--brand-lime, #c6f432); color: #111; border-bottom-right-radius: .25rem; }
+  .chat-ia { align-self: flex-start; background: var(--bs-tertiary-bg); border: 1px solid var(--bs-border-color); border-bottom-left-radius: .25rem; }
+  .chat-error { align-self: center; color: var(--bs-danger); font-size: .875rem; }
+</style>
+<script src="~/js/asistente.js" asp-append-version="true" defer></script>

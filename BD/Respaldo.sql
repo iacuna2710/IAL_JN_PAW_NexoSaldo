@@ -57,6 +57,21 @@ BEGIN
 END
 GO
 
+CREATE PROCEDURE [dbo].[sp_ConsultarCorreo]
+    @CorreoElectronico nvarchar(100)
+AS
+BEGIN
+
+    DECLARE @EstadoActivo BIT = 1
+
+    SELECT  IdUsuario, Identificacion, NombreCompleto, CorreoElectronico, Estado
+    FROM    dbo.Usuario
+    WHERE   CorreoElectronico = @CorreoElectronico
+        AND Estado = @EstadoActivo
+
+END
+GO
+
 CREATE PROCEDURE [dbo].[sp_RegistrarUsuario]
 	@Identificacion nvarchar(20),
     @NombreCompleto nvarchar(250),

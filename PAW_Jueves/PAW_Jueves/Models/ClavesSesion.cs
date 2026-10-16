@@ -1,0 +1,33 @@
+namespace PAW_Jueves.Models
+{
+    /// <summary>
+    /// Nombres de las variables que se guardan en HttpContext.Session. Están en un solo lugar para
+    /// no escribir el mismo texto a mano en controladores, filtros y vistas (y equivocarse).
+    /// </summary>
+    public static class ClavesSesion
+    {
+        /// <summary>Token JWT que entregó la API; se manda en cada llamada protegida.</summary>
+        public const string Token = "Token";
+
+        /// <summary>Id del usuario que inició sesión. Si no existe, no hay sesión.</summary>
+        public const string IdUsuario = "IdUsuario";
+
+        /// <summary>Nombre que se muestra en la barra superior.</summary>
+        public const string NombreCompleto = "NombreCompleto";
+
+        /// <summary>Ruta de la foto de perfil (/uploads/perfiles/...) o vacío si usa la imagen por defecto.</summary>
+        public const string FotoPerfil = "FotoPerfil";
+
+        /// <summary>Moneda preferida (CRC, USD o EUR) para mostrar los montos.</summary>
+        public const string Moneda = "Moneda";
+
+        /// <summary>Vale 1 mientras la pantalla está bloqueada (Lock Screen). La sesión sigue abierta.</summary>
+        public const string Bloqueado = "Bloqueado";
+
+        /// <summary>Intentos fallidos de desbloqueo. Al llegar a 5 se cierra la sesión.</summary>
+        public const string IntentosDesbloqueo = "IntentosDesbloqueo";
+
+        /// <summary>Vale 1 con sesión iniciada. Lo usa Error.cshtml para elegir el layout.</summary>
+        public const string Autenticado = "Autenticado";
+    }
+}
