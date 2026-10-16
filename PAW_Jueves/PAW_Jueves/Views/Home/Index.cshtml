@@ -51,6 +51,19 @@
   </div>
 </div>
 
+<!-- Resumen escrito por la IA (lo carga resumen-ia.js) -->
+<div class="card p-4 border-light shadow-sm mb-4" id="resumen-ia"
+     data-url="@Url.Action("Resumen", "Asistente")" data-periodo="@periodo">
+  <div class="d-flex justify-content-between align-items-center mb-2">
+    <h2 class="card-title h5 mb-0"><i class="bi bi-stars"></i> Resumen IA</h2>
+    <button type="button" class="btn btn-sm btn-outline-secondary" id="resumen-ia-regenerar" title="Pedir un resumen nuevo a la IA">
+      <i class="bi bi-arrow-clockwise"></i> Regenerar
+    </button>
+  </div>
+  <p class="mb-0 text-secondary" id="resumen-ia-texto" style="white-space: pre-wrap;">Preparando el resumen…</p>
+  <p class="text-secondary fs-xs mt-2 mb-0">Generado con Gemini a partir de los totales de arriba. Puede contener errores; los números de las tarjetas son los oficiales.</p>
+</div>
+
 <!-- Gráficos -->
 <div class="row g-4 mb-4">
   <div class="col-12 col-xl-5">
@@ -116,4 +129,6 @@
 </div>
 
 <script type="application/json" id="datos-dashboard">@Json.Serialize(datosGraficos)</script>
+@Html.AntiForgeryToken()
 <script src="~/js/gastos-dashboard.js" asp-append-version="true" defer></script>
+<script src="~/js/resumen-ia.js" asp-append-version="true" defer></script>

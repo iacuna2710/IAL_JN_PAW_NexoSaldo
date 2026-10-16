@@ -42,6 +42,10 @@ builder.Services.AddSession(opciones =>
     opciones.Cookie.SecurePolicy = CookieSecurePolicy.SameAsRequest;
 });
 
+// Las llamadas con fetch (chat del asistente, resumen IA) mandan JSON, no un formulario: el token
+// antiforgery viaja en este header en lugar de un campo oculto.
+builder.Services.AddAntiforgery(opciones => opciones.HeaderName = "RequestVerificationToken");
+
 // Límite de intentos: máximo 5 POST por minuto por IP a Login y Register ([EnableRateLimiting("login")]).
 // Si se supera, vuelve al Login con el aviso "Demasiados intentos".
 builder.Services.AddRateLimiter(opciones =>

@@ -36,6 +36,20 @@ builder.Services.AddSingleton<ITokenService, TokenService>();
 // BitacoraService lee la IP del usuario de la petición actual: necesita IHttpContextAccessor
 builder.Services.AddHttpContextAccessor();
 builder.Services.AddScoped<IBitacoraService, BitacoraService>();
+builder.Services.AddScoped<IReportesService, ReportesService>();
+
+// ---------- Gemini (asistente con IA) ----------
+// La clave NO va en appsettings: user-secrets en desarrollo o la variable de entorno Gemini__ApiKey.
+// Es opcional: sin clave la API arranca igual y el asistente responde "no configurado".
+builder.Services.AddOptions<GeminiOptions>()
+    .Bind(builder.Configuration.GetSection(GeminiOptions.Seccion))
+    .ValidateDataAnnotations()
+    .ValidateOnStart();
+builder.Services.AddHttpClient<IGeminiService, GeminiService>((servicios, cliente) =>
+{
+    var gemini = servicios.GetRequiredService<Microsoft.Extensions.Options.IOptions<GeminiOptions>>().Value;
+    cliente.Timeout = TimeSpan.FromSeconds(gemini.TimeoutSegundos);
+});
 
 // ---------- Token JWT (quién es el usuario en cada petición) ----------
 // Options pattern: la sección "Jwt" de appsettings se convierte en un objeto JwtOptions.
@@ -81,6 +95,17 @@ builder.Services.AddRateLimiter(opciones =>
             new ResponseApi { Mensaje = "Demasiados intentos. Espere un minuto e intente de nuevo." },
             cancellationToken);
 
+    // Política "asistente": máximo 10 consultas a la IA por minuto por usuario (cuida la cuota gratuita
+    // de Gemini). Se identifica al usuario por el claim "sub" del token.
+    opciones.AddPolicy("asistente", http => RateLimitPartition.GetFixedWindowLimiter(
+        http.User.FindFirst("sub")?.Value ?? http.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
+        _ => new FixedWindowRateLimiterOptions
+        {
+            PermitLimit = 10,
+            Window = TimeSpan.FromMinutes(1),
+            QueueLimit = 0
+        }));
+
     opciones.AddPolicy("credenciales", http => RateLimitPartition.GetFixedWindowLimiter(
         http.Connection.RemoteIpAddress?.ToString() ?? "desconocida",
         _ => new FixedWindowRateLimiterOptions
@@ -111,14 +136,15 @@ app.UseExceptionHandler("/api/Error/CapturarError");
 // Si alguien llama por http://, se le responde con una redirección a https://
 app.UseHttpsRedirection();
 
-// Aplica los límites de intentos ([EnableRateLimiting] en Login y Register)
-app.UseRateLimiter();
-
 // Lee el token del header Authorization y llena User con sus claims (IdUsuario, nombre)
 app.UseAuthentication();
 
 // Revisa los atributos [Authorize]: sin token válido responde 401 (ver UsuarioController)
 app.UseAuthorization();
+
+// Aplica los límites de intentos ([EnableRateLimiting]). Va DESPUÉS de UseAuthentication para que
+// la política "asistente" pueda limitar por usuario (necesita el claim "sub" del token).
+app.UseRateLimiter();
 
 // Conecta cada URL con el método del controlador que tiene ese [Route]
 app.MapControllers();

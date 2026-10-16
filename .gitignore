@@ -367,3 +367,6 @@ FodyWeavers.xsd
 
 # Fotos de perfil subidas por los usuarios (datos, no código)
 **/wwwroot/uploads/
+
+# Variables locales de docker-compose (clave de Gemini, contraseña de la BD). Nunca se versionan.
+.env

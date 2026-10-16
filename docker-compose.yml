@@ -56,6 +56,8 @@ services:
       ASPNETCORE_ENVIRONMENT: Development
       # Dentro del contenedor "localhost" no es tu PC: se usa el servicio "db" y autenticacion SQL
       Variables__ConnectionString: "Server=db,1433; Database=JN_BD; User Id=sa; Password=${DB_PASSWORD:-Paw_Jueves2026}; TrustServerCertificate=True;"
+      # Clave de Gemini: se lee del archivo .env (ignorado por git). Vacía = asistente deshabilitado
+      Gemini__ApiKey: "${GEMINI_API_KEY:-}"
       # Link de recuperacion: apunta al puerto publicado del servicio web
       Variables__LinkForgot: "http://localhost:5051/Home/ChangePassword/"
     depends_on:
